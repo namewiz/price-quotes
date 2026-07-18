@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Price Quotes — pricing playground</title>
+  <style>
+    :root {
+      --bg: #f7f8fa;
+      --card: #fff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --line: #e5e7eb;
+      --ring: #cbd5e1;
+      --accent: #4f46e5;
+      --accent-soft: #eef2ff;
+      --dominant: #059669;
+      --dominant-soft: #ecfdf5;
+      --strong: #2563eb;
+      --strong-soft: #eff6ff;
+      --info: #64748b;
+      --info-soft: #f1f5f9;
+      --shadow: 0 8px 30px rgba(2, 6, 23, .06);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1120;
+        --card: #131c2e;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --line: #263449;
+        --ring: #33415a;
+        --accent: #818cf8;
+        --accent-soft: #1e243d;
+        --dominant: #34d399;
+        --dominant-soft: #0f2a22;
+        --strong: #60a5fa;
+        --strong-soft: #12233d;
+        --info: #94a3b8;
+        --info-soft: #1a2436;
+        --shadow: 0 8px 30px rgba(0, 0, 0, .35);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+    }
+
+    .wrap {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 20px 64px;
+    }
+
+    header h1 {
+      margin: 0 0 4px;
+      font-size: 26px;
+      letter-spacing: -.02em;
+    }
+
+    header p {
+      margin: 0 0 24px;
+      color: var(--muted);
+      max-width: 60ch;
+    }
+
+    code.inline {
+      background: var(--info-soft);
+      padding: 1px 6px;
+      border-radius: 5px;
+      font-size: .88em;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .card h2 {
+      margin: 0 0 16px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+    }
+
+    .field { margin-bottom: 14px; }
+    .field:last-child { margin-bottom: 0; }
+
+    label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    select, input {
+      width: 100%;
+      padding: 9px 11px;
+      border: 1px solid var(--ring);
+      border-radius: 9px;
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+    }
+
+    .segmented {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .segmented button {
+      flex: 1 1 auto;
+      padding: 8px 10px;
+      border: 1px solid var(--ring);
+      border-radius: 9px;
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+      cursor: pointer;
+      transition: .12s;
+    }
+
+    .segmented button[aria-pressed="true"] {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 7px 0;
+      border-bottom: 1px dashed var(--line);
+    }
+
+    .row:last-child { border-bottom: 0; }
+    .row .k { color: var(--muted); }
+    .row .v { font-variant-numeric: tabular-nums; }
+
+    .total .k { font-weight: 600; color: var(--text); }
+    .total .v { font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+
+    .rate {
+      margin-top: 10px;
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+
+    .insights { margin-top: 28px; }
+    .insights > h2 {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      margin: 0 0 12px;
+    }
+
+    .insight {
+      border: 1px solid var(--line);
+      border-left-width: 4px;
+      border-radius: 11px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      background: var(--card);
+    }
+
+    .insight.dominant { border-left-color: var(--dominant); }
+    .insight.strong { border-left-color: var(--strong); }
+    .insight.info { border-left-color: var(--info); }
+
+    .insight .head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+
+    .badge {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+
+    .badge.dominant { background: var(--dominant-soft); color: var(--dominant); }
+    .badge.strong { background: var(--strong-soft); color: var(--strong); }
+    .badge.info { background: var(--info-soft); color: var(--info); }
+
+    .insight .title { font-weight: 600; }
+    .insight .assumes {
+      margin-top: 6px;
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+
+    .empty {
+      color: var(--muted);
+      font-size: 14px;
+      padding: 8px 0;
+    }
+
+    footer {
+      margin-top: 40px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    footer a { color: var(--accent); }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Price Quotes</h1>
+      <p>
+        A generic quote engine. This playground prices a sample SaaS plan and surfaces
+        <strong>smart savings insights</strong> — the same output any product type gets.
+        Change the inputs and watch the engine spot when a different-but-equivalent
+        purchase shape would cost less.
+      </p>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Your order</h2>
+        <div class="field">
+          <label for="plan">Plan</label>
+          <select id="plan">
+            <option value="starter">Starter</option>
+            <option value="pro" selected>Pro</option>
+            <option value="enterprise">Enterprise</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Billing interval</label>
+          <div class="segmented" id="interval">
+            <button data-val="month" aria-pressed="true">Monthly</button>
+            <button data-val="year" aria-pressed="false">Yearly</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="quantity">Seats</label>
+          <input id="quantity" type="number" min="1" value="1" />
+        </div>
+        <div class="field">
+          <label for="term">Term (number of intervals up front)</label>
+          <input id="term" type="number" min="1" value="1" />
+        </div>
+        <div class="field">
+          <label for="currency">Currency</label>
+          <select id="currency">
+            <option value="USD" selected>USD ($)</option>
+            <option value="EUR">EUR (€)</option>
+            <option value="NGN">NGN (₦)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Quote</h2>
+        <div id="breakdown"></div>
+        <div class="rate" id="rate"></div>
+      </div>
+    </div>
+
+    <div class="insights">
+      <h2>Smart insights</h2>
+      <div id="insights"></div>
+    </div>
+
+    <footer>
+      Powered by <code class="inline">price-quotes</code> running entirely in your browser.
+      <a href="https://github.com/namewiz/price-quotes">Source &amp; docs →</a>
+    </footer>
+  </div>
+
+  <script type="module">
+    let mod;
+    try {
+      mod = await import('./price-quotes.js');
+    } catch (err) {
+      console.warn('Local bundle not found, using CDN.', err);
+      mod = await import('https://cdn.jsdelivr.net/npm/price-quotes@latest/dist/index.js');
+    }
+    const { softwareQuotes, formatMoney, formatInsight, toMajor } = mod;
+
+    // A sample multi-currency SaaS catalog. Prices are per seat.
+    const engine = softwareQuotes({
+      currencies: [
+        { code: 'USD', symbol: '$', exponent: 2 },
+        { code: 'EUR', symbol: '€', exponent: 2 },
+        { code: 'NGN', symbol: '₦', exponent: 2, roundingIncrement: 100 },
+      ],
+      rates: { EUR: 0.92, NGN: 1600 },
+      taxes: [{ id: 'vat', name: 'VAT', rate: 0.2 }],
+      plans: [
+        {
+          id: 'starter', name: 'Starter',
+          monthly: 8, annual: 80,
+          seatTiers: [{ minSeats: 5, monthly: 6, annual: 60 }],
+        },
+        {
+          id: 'pro', name: 'Pro',
+          monthly: 15, annual: 150,
+          seatTiers: [{ minSeats: 5, monthly: 12, annual: 120 }, { minSeats: 20, monthly: 9, annual: 90 }],
+          termTiers: [{ minYears: 2, annual: 130 }],
+        },
+        {
+          id: 'enterprise', name: 'Enterprise',
+          monthly: 40, annual: 400,
+          seatTiers: [{ minSeats: 10, monthly: 32, annual: 320 }, { minSeats: 50, monthly: 24, annual: 240 }],
+          termTiers: [{ minYears: 3, annual: 340 }],
+        },
+      ],
+    });
+
+    const el = (id) => document.getElementById(id);
+    const state = { plan: 'pro', interval: 'month', quantity: 1, term: 1, currency: 'USD' };
+
+    el('interval').addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      state.interval = btn.dataset.val;
+      for (const b of el('interval').children) b.setAttribute('aria-pressed', String(b === btn));
+      render();
+    });
+    el('plan').addEventListener('change', (e) => { state.plan = e.target.value; render(); });
+    el('currency').addEventListener('change', (e) => { state.currency = e.target.value; render(); });
+    el('quantity').addEventListener('input', (e) => { state.quantity = Math.max(1, +e.target.value || 1); render(); });
+    el('term').addEventListener('input', (e) => { state.term = Math.max(1, +e.target.value || 1); render(); });
+
+    function line(k, money, meta, cls = '') {
+      return `<div class="row ${cls}"><span class="k">${k}</span><span class="v">${formatMoney(meta, money)}</span></div>`;
+    }
+
+    async function render() {
+      let quote;
+      try {
+        quote = await engine.quote({
+          sku: state.plan,
+          currency: state.currency,
+          interval: state.interval,
+          quantity: state.quantity,
+          term: state.term,
+        }, { explore: true });
+      } catch (err) {
+        el('breakdown').innerHTML = `<div class="empty">${err.message}</div>`;
+        el('rate').textContent = '';
+        el('insights').innerHTML = '';
+        return;
+      }
+
+      const meta = quote.currency;
+      let html = line('Unit price', quote.unitPrice, meta) +
+        line(`Subtotal (${state.quantity} × ${state.term})`, quote.subtotal, meta);
+      if (quote.discount.minor > 0) html += line('Discount', quote.discount, meta);
+      for (const t of quote.taxes) html += line(`${t.name} (${Math.round(t.rate * 100)}%)`, t.amount, meta);
+      html += line('Total', quote.total, meta, 'total');
+      el('breakdown').innerHTML = html;
+
+      el('rate').textContent = quote.rate
+        ? `≈ ${formatMoney(meta, { currency: meta.code, minor: Math.round(quote.rate.perUnitPerYear * (10 ** meta.exponent)) })} per seat / year`
+        : 'One-time purchase.';
+
+      const box = el('insights');
+      if (quote.insights.length === 0) {
+        box.innerHTML = `<div class="empty">No cheaper equivalent found — this is already a good shape for what you asked for.</div>`;
+        return;
+      }
+      box.innerHTML = quote.insights.map((i) => {
+        const assumes = i.assumes.length ? `<div class="assumes">Assumes ${i.assumes.join('; ')}.</div>` : '';
+        return `<div class="insight ${i.strength}">
+          <div class="head">
+            <span class="badge ${i.strength}">${i.strength}</span>
+            <span class="title">${formatInsightTitle(i)}</span>
+          </div>
+          ${assumes}
+        </div>`;
+      }).join('');
+    }
+
+    // formatInsight() already includes the "(assumes ...)" tail; strip it since we render
+    // assumptions separately below the title.
+    function formatInsightTitle(i) {
+      const full = formatInsight(i);
+      const cut = full.indexOf(' (assumes ');
+      return cut === -1 ? full : full.slice(0, cut);
+    }
+
+    render();
+  </script>
+</body>
+
+</html>

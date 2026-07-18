@@ -1,0 +1,54 @@
+{
+  "name": "price-quotes",
+  "version": "0.1.0",
+  "description": "A generic, multi-currency quote engine with built-in savings insights. Prices any product type from a declarative catalog.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "npx -y esbuild src/index.ts src/presets/domains/index.ts src/presets/software/index.ts --bundle --minify --format=esm --target=esnext --outdir=dist/ --outbase=src --splitting --platform=neutral && npx -y -p typescript@5 tsc --emitDeclarationOnly",
+    "postbuild": "npx -y esbuild src/bundle.ts --bundle --minify --format=esm --target=esnext --outfile=docs/price-quotes.js --platform=neutral",
+    "test": "npm run build && node --test",
+    "start": "npm run build && npx serve docs"
+  },
+  "homepage": "https://namewiz.github.io/price-quotes",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/namewiz/price-quotes.git"
+  },
+  "bugs": {
+    "url": "https://github.com/namewiz/price-quotes/issues"
+  },
+  "author": "Justice Ogbonna <dev@justiceo.com>",
+  "keywords": [
+    "quote",
+    "quotes",
+    "pricing",
+    "price-engine",
+    "billing",
+    "multi-currency",
+    "tax",
+    "vat",
+    "discounts",
+    "volume-pricing",
+    "subscription-pricing"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./presets/domains": {
+      "types": "./dist/presets/domains/index.d.ts",
+      "default": "./dist/presets/domains/index.js"
+    },
+    "./presets/software": {
+      "types": "./dist/presets/software/index.d.ts",
+      "default": "./dist/presets/software/index.js"
+    }
+  },
+  "license": "MIT",
+  "files": [
+    "dist"
+  ]
+}
