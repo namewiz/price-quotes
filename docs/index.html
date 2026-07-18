@@ -302,14 +302,18 @@
   </div>
 
   <script type="module">
+    // price-quotes.js is a self-contained bundle (core + presets) committed alongside this
+    // page and served by GitHub Pages, so the demo needs no network and no npm publish.
+    // Regenerate it with `npm run build`.
     let mod;
     try {
       mod = await import('./price-quotes.js');
     } catch (err) {
-      console.warn('Local bundle not found, using CDN.', err);
-      mod = await import('https://cdn.jsdelivr.net/npm/price-quotes@latest/dist/index.js');
+      document.getElementById('breakdown').innerHTML =
+        '<div class="empty">Could not load the engine bundle (docs/price-quotes.js). Run <code class="inline">npm run build</code>.</div>';
+      throw err;
     }
-    const { softwareQuotes, formatMoney, formatInsight, toMajor } = mod;
+    const { softwareQuotes, formatMoney, formatInsight } = mod;
 
     // A sample multi-currency SaaS catalog. Prices are per seat.
     const engine = softwareQuotes({
