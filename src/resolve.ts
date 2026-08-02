@@ -1,5 +1,4 @@
 // Price resolution: alias normalize, then probe the specificity lattice, then band-select.
-// See design-docs/design-v2.md, "The index, and why lookup is O(1)".
 
 import { BillingPeriod, Band, CatalogConfig, Price } from "./types.js";
 import { QuoteError } from "./errors.js";

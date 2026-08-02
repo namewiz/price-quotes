@@ -11,7 +11,7 @@ test("multi-line cart prices every line independently", () => {
     lines: [{ sku: ".ng", quantity: 2 }, { sku: "hosting", quantity: 1 }],
   });
   assert.equal(quote.lines.length, 2);
-  assert.equal(quote.dueNowMinor, 2000 + 6000);
+  assert.equal(quote.amountDue, 2000 + 6000);
 });
 
 test("a cart in a currency with no catalog rows errors before any line resolves", () => {
@@ -40,8 +40,8 @@ test("the same cart at two asOf values spanning an effective-window boundary giv
   const q = new Quotes(config);
   const before = q.quoteCart({ currency: "USD", lines: [{ sku: ".ng", quantity: 1 }], asOf: new Date("2025-12-31T23:59:59Z") });
   const after = q.quoteCart({ currency: "USD", lines: [{ sku: ".ng", quantity: 1 }], asOf: new Date("2026-01-01T00:00:00Z") });
-  assert.equal(before.lines[0].unitMinor, 1000);
-  assert.equal(after.lines[0].unitMinor, 1200);
+  assert.equal(before.lines[0].salePrice, 1000);
+  assert.equal(after.lines[0].salePrice, 1200);
 });
 
 test("a quote replayed from (catalogHash, asOf, lines) is identical", () => {
@@ -69,8 +69,8 @@ test("property: total is never negative across a range of quantities, discounts 
   const q = new Quotes(config);
   for (let quantity = 1; quantity <= 25; quantity++) {
     const r = q.quote({ sku: ".ng", quantity }, "USD");
-    assert.ok(r.totalMinor >= 0, `quantity=${quantity} total=${r.totalMinor}`);
-    assert.equal(r.unitMinor * quantity, r.subtotalMinor);
+    assert.ok(r.total >= 0, `quantity=${quantity} total=${r.total}`);
+    assert.equal(r.salePrice * quantity, r.extendedSalePrice);
   }
 });
 
@@ -82,8 +82,8 @@ test("property: row order never changes the quote for equivalent catalogs", () =
   const cart = { currency: "USD", lines: [{ sku: ".ng", quantity: 1 }, { sku: ".ng", quantity: 1, variant: "transfer" }, { sku: "hosting", quantity: 2 }] };
   const ra = qa.quoteCart(cart);
   const rb = qb.quoteCart(cart);
-  assert.equal(ra.dueNowMinor, rb.dueNowMinor);
-  assert.deepEqual(ra.lines.map((l) => l.unitMinor), rb.lines.map((l) => l.unitMinor));
+  assert.equal(ra.amountDue, rb.amountDue);
+  assert.deepEqual(ra.lines.map((l) => l.salePrice), rb.lines.map((l) => l.salePrice));
 });
 
 test("performance: quote latency is flat from 100 to 100,000 price rows", () => {

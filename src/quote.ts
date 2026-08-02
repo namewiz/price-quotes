@@ -1,9 +1,8 @@
-// Line computation and the public Quotes API. See design-docs/design-v2.md,
-// "Line computation" and "Cart pricing and the public API".
+// Line computation and the public Quotes API.
 
 import {
-  Adjustment, AppliedAdjustment, AppliedTax, CartLine, CartQuote, CartRequest, CatalogConfig,
-  LineQuote, PeriodTotal, Price, Tax,
+  Adjustment, AppliedCharge, AppliedTax, CartLine, CartQuote, CartRequest, CatalogConfig,
+  LineQuote, LineQuoteDebug, Price, Tax,
 } from "./types.js";
 import { QuoteError } from "./errors.js";
 import { evaluateConstraint, EvalContext } from "./constraints.js";
@@ -13,6 +12,8 @@ import { normalizeSku, resolvePrice } from "./resolve.js";
 export interface QuotesOptions {
   defaultTaxBehavior?: "inclusive" | "exclusive";
   normalizeSku?: (raw: string) => string;
+  /** When true, every `LineQuote` gets a populated `debug` breakdown. Default false. */
+  debug?: boolean;
 }
 
 function billingPeriodOf(frequency: "one-time" | "recurring", interval?: "month" | "year"): "one-time" | "recurring:month" | "recurring:year" {
@@ -30,6 +31,16 @@ function combineKind(adjustments: Adjustment[], kind: "discount" | "markup" | "f
   return stackSum + (best ?? 0);
 }
 
+/** Informational per-entry dollar amount for a charge, against whichever base it was applied to. */
+function chargeAmount(a: Adjustment, base: number, quantity: number): number {
+  if (a.type === "amount") return a.basis === "line" ? a.value : a.value * quantity;
+  return Math.round(base * a.value) * quantity;
+}
+
+function toAppliedCharges(adjustments: Adjustment[], base: number, quantity: number): AppliedCharge[] {
+  return adjustments.map((a) => ({ id: a.id, label: a.label, amount: chargeAmount(a, base, quantity) }));
+}
+
 function computeLine(
   config: CatalogConfig,
   line: CartLine,
@@ -37,7 +48,8 @@ function computeLine(
   asOf: number,
   cartContext: Record<string, string>,
   taxBehaviorDefault: "inclusive" | "exclusive",
-  normalizeHook?: (raw: string) => string,
+  normalizeHook: ((raw: string) => string) | undefined,
+  debug: boolean,
 ): LineQuote {
   if (!Number.isInteger(line.quantity) || line.quantity < 1) {
     throw new QuoteError("ERR_INVALID_REQUEST", `line "${line.ref ?? line.sku}" has an invalid quantity: ${line.quantity}`);
@@ -74,47 +86,50 @@ function computeLine(
   const eligibleTaxes = price.taxes.filter((t) => !t.constraints || evaluateConstraint(t.constraints, ctx));
 
   const meta = config.currencies.get(currency)!;
+  const unitBasisAdjustments = eligibleAdjustments.filter((a) => a.type === "amount" && a.basis === "unit");
+  const lineBasisAdjustments = eligibleAdjustments.filter((a) => a.type === "amount" && a.basis === "line");
 
-  // Unit-scoped: all rates share one base and combine additively (goal #4 - order independence).
+  // Stage 1 - markup: applied to the raw catalog price, folded into `unitPrice`, never itemized
+  // outside debug mode (business margin, not a customer-facing line item). No charm here — charm
+  // is sale-price psychology, not the sticker price.
   const markupRate = combineKind(eligibleAdjustments, "markup", "rate", Math.min);
+  const markupAmountUnit = combineKind(unitBasisAdjustments, "markup", "amount", Math.min);
+  const unitPrice = quantize(price.baseUnitMinor * (1 + markupRate) + markupAmountUnit, meta.increment, price.quantization);
+  const extendedUnitPrice = unitPrice * line.quantity;
+  const markupAmountLine = combineKind(lineBasisAdjustments, "markup", "amount", Math.min);
+
+  // Stage 2 - fee/discount: applied on top of `unitPrice`, then charm -> `salePrice`.
   const feeRate = combineKind(eligibleAdjustments, "fee", "rate", Math.min);
   const discountRate = combineKind(eligibleAdjustments, "discount", "rate", Math.max);
-  const netRateFactor = 1 + markupRate + feeRate - discountRate;
-  const rateAdjustedUnit = quantize(price.baseUnitMinor * netRateFactor, meta.increment, price.quantization);
+  const netRateFactor = 1 + feeRate - discountRate;
+  const rateAdjustedUnit = quantize(unitPrice * netRateFactor, meta.increment, price.quantization);
 
-  const unitBasisAdjustments = eligibleAdjustments.filter((a) => a.type === "amount" && a.basis === "unit");
-  const markupAmountUnit = combineKind(unitBasisAdjustments, "markup", "amount", Math.min);
   const feeAmountUnit = combineKind(unitBasisAdjustments, "fee", "amount", Math.min);
   const discountAmountUnit = combineKind(unitBasisAdjustments, "discount", "amount", Math.max);
-  const unitBeforeCharm = Math.max(0, rateAdjustedUnit + markupAmountUnit + feeAmountUnit - discountAmountUnit);
+  const unitBeforeCharm = Math.max(0, rateAdjustedUnit + feeAmountUnit - discountAmountUnit);
 
-  const unitMinor = charmPrice(unitBeforeCharm, price.charm, price.charmPosition);
-  const subtotalMinor = unitMinor * line.quantity;
-  if (!Number.isSafeInteger(subtotalMinor)) {
+  const salePrice = charmPrice(unitBeforeCharm, price.charm, price.charmPosition);
+  const extendedSalePrice = salePrice * line.quantity;
+  if (!Number.isSafeInteger(extendedSalePrice)) {
     throw new QuoteError("ERR_AMOUNT_OVERFLOW", `line "${line.ref ?? line.sku}": unit x quantity exceeds the safe integer range`);
   }
 
   // Line-scoped: `amount` adjustments with basis "line" (the default), applied after charm.
-  const lineAdjustments = eligibleAdjustments.filter((a) => a.type === "amount" && a.basis === "line");
-  const markupLine = combineKind(lineAdjustments, "markup", "amount", Math.min);
-  const feeLine = combineKind(lineAdjustments, "fee", "amount", Math.min);
-  const discountLine = combineKind(lineAdjustments, "discount", "amount", Math.max);
-  const lineAdjustmentsMinor = markupLine + feeLine - discountLine;
-  const taxableMinor = Math.max(0, subtotalMinor + lineAdjustmentsMinor);
+  const feeLine = combineKind(lineBasisAdjustments, "fee", "amount", Math.min);
+  const discountLine = combineKind(lineBasisAdjustments, "discount", "amount", Math.max);
+  const netLineAdjustment = feeLine - discountLine;
+  const taxableMinor = Math.max(0, extendedSalePrice + netLineAdjustment + markupAmountLine);
 
-  const appliedAdjustments: AppliedAdjustment[] = eligibleAdjustments.map((a) => {
-    let amountMinor: number;
-    if (a.type === "amount") {
-      amountMinor = a.basis === "line" ? a.value : a.value * line.quantity;
-    } else {
-      amountMinor = Math.round(price.baseUnitMinor * a.value) * line.quantity;
-    }
-    return { id: a.id, kind: a.kind, label: a.label, amountMinor };
-  });
+  const discountAdjustments = eligibleAdjustments.filter((a) => a.kind === "discount");
+  const feeAdjustments = eligibleAdjustments.filter((a) => a.kind === "fee");
+  const markupAdjustments = eligibleAdjustments.filter((a) => a.kind === "markup");
+  const discounts = toAppliedCharges(discountAdjustments, unitPrice, line.quantity);
+  const fees = toAppliedCharges(feeAdjustments, unitPrice, line.quantity);
 
   let taxChargedMinor = 0;
   let taxAddedMinor = 0;
-  const appliedTaxes: AppliedTax[] = [];
+  const taxes: AppliedTax[] = [];
+  const inclusiveTaxes: AppliedTax[] = [];
   let compoundBase = taxableMinor;
   for (const t of eligibleTaxes) {
     const behavior = t.behavior === "unspecified" ? taxBehaviorDefault : t.behavior;
@@ -131,15 +146,30 @@ function computeLine(
     taxChargedMinor += charged;
     taxAddedMinor += added;
     compoundBase += added;
-    appliedTaxes.push({ id: t.id, label: t.label, rate: t.rate, chargedMinor: charged, addedMinor: added });
+    if (added > 0) {
+      taxes.push({ id: t.id, label: t.label, rate: t.rate, amount: added });
+    } else {
+      inclusiveTaxes.push({ id: t.id, label: t.label, rate: t.rate, amount: charged });
+    }
   }
 
-  const totalMinor = taxableMinor + taxAddedMinor;
+  const total = taxableMinor + taxAddedMinor;
+
+  let debugInfo: LineQuoteDebug | undefined;
+  if (debug) {
+    debugInfo = {
+      costPrice: price.baseUnitMinor,
+      markup: toAppliedCharges(markupAdjustments, price.baseUnitMinor, line.quantity),
+      unitPrice,
+      inclusiveTaxes,
+      taxLiability: taxChargedMinor,
+    };
+  }
 
   return {
     ref: line.ref, sku, priceId: price.id, quantity: line.quantity, variant: price.variant, country: price.country,
-    currency, frequency, interval: line.interval, listUnitMinor: price.baseUnitMinor, unitMinor, subtotalMinor,
-    adjustments: appliedAdjustments, lineAdjustmentsMinor, taxes: appliedTaxes, taxChargedMinor, taxAddedMinor, totalMinor,
+    currency, frequency, interval: line.interval, unitPrice, extendedUnitPrice, salePrice, extendedSalePrice,
+    discounts, fees, netLineAdjustment, taxes, tax: taxAddedMinor, total, debug: debugInfo,
   };
 }
 
@@ -151,7 +181,10 @@ export class Quotes {
   constructor(private config: CatalogConfig, private options: QuotesOptions = {}) {}
 
   quote(line: CartLine, currency: string, asOf: Date = new Date()): LineQuote {
-    return computeLine(this.config, line, currency, asOf.getTime(), {}, this.options.defaultTaxBehavior ?? "exclusive", this.options.normalizeSku);
+    return computeLine(
+      this.config, line, currency, asOf.getTime(), {}, this.options.defaultTaxBehavior ?? "exclusive",
+      this.options.normalizeSku, this.options.debug ?? false,
+    );
   }
 
   quoteCart(request: CartRequest): CartQuote {
@@ -163,7 +196,7 @@ export class Quotes {
         lines.push(
           computeLine(
             this.config, request.lines[i], request.currency, asOf, request.context ?? {},
-            this.options.defaultTaxBehavior ?? "exclusive", this.options.normalizeSku,
+            this.options.defaultTaxBehavior ?? "exclusive", this.options.normalizeSku, this.options.debug ?? false,
           ),
         );
       } catch (e) {
@@ -174,23 +207,8 @@ export class Quotes {
       }
     }
 
-    const groupMap = new Map<string, PeriodTotal>();
-    for (const l of lines) {
-      const key = `${l.frequency}:${l.interval ?? ""}`;
-      let g = groupMap.get(key);
-      if (!g) {
-        g = { frequency: l.frequency, interval: l.interval, subtotalMinor: 0, adjustmentsMinor: 0, taxableMinor: 0, taxMinor: 0, totalMinor: 0 };
-        groupMap.set(key, g);
-      }
-      g.subtotalMinor += l.subtotalMinor;
-      g.adjustmentsMinor += l.lineAdjustmentsMinor;
-      g.taxableMinor += l.subtotalMinor + l.lineAdjustmentsMinor;
-      g.taxMinor += l.taxAddedMinor;
-      g.totalMinor += l.totalMinor;
-    }
-    const groups = [...groupMap.values()];
-    const dueNowMinor = groups.reduce((s, g) => s + g.totalMinor, 0);
+    const amountDue = lines.reduce((s, l) => s + l.total, 0);
 
-    return { lines, groups, dueNowMinor, currency: request.currency, asOf: asOfDate.toISOString(), catalogHash: this.config.hash };
+    return { lines, amountDue, currency: request.currency, asOf: asOfDate.toISOString(), catalogHash: this.config.hash };
   }
 }

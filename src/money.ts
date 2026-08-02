@@ -1,5 +1,5 @@
 // Money: quantization (representation) and charm (pricing policy) are two mechanisms
-// that are not a pair — see design-docs/design-v2.md, "Money".
+// that are not a pair.
 
 import { Charm, Quantization } from "./types.js";
 

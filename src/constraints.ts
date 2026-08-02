@@ -1,5 +1,5 @@
 // Constraint grammar: a closed comparison grammar, parsed at load, evaluated by fixed
-// dispatch at quote time. Never reaches `eval` or a callback. See design-docs/design-v2.md.
+// dispatch at quote time. Never reaches `eval` or a callback.
 
 import { ConstraintClause, ConstraintExpr, ConstraintOp } from "./types.js";
 import { nearestMatch } from "./errors.js";

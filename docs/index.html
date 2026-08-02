@@ -256,6 +256,9 @@
           <label for="context">Context (k=v;k2=v2 — read by constraint cells)</label>
           <input id="context" type="text" placeholder="customer_tier=pro" />
         </div>
+        <div class="field">
+          <label><input id="debug-toggle" type="checkbox" checked style="width:auto;margin-right:6px;" />Show debug breakdown (cost price, hidden markup, inclusive tax)</label>
+        </div>
 
         <h3>Lines</h3>
         <div class="lines" id="lines"></div>
@@ -297,6 +300,81 @@
         "product_sku,price_amount,adjustment_kind,adjustment_type,adjustment_value,adjustment_constraints",
         ".ng,10.00,discount,rate,0.20,customer_tier=!=free",
       ].join("\n"),
+      'Markup + inclusive tax (debug demo)': [
+        "product_sku,price_amount,adjustment_kind,adjustment_type,adjustment_value,tax_rate,tax_behavior",
+        ".ng,10.00,markup,rate,0.20,0.10,inclusive",
+      ].join("\n"),
+      'Domain registrar (realistic)': {
+        csv: [
+          "product_sku,product_variant,price_amount,adjustment_kind,adjustment_type,adjustment_value,adjustment_label,adjustment_basis,adjustment_constraints,tax_rate,tax_behavior",
+          ".ng,,12.34,markup,rate,0.15,,,,0.075,exclusive",
+          ".ng,,12.34,discount,rate,0.10,Launch week,,customer_tier=!=enterprise,,",
+          ".ng,,12.34,fee,amount,1.50,ICANN fee,line,,,",
+          ".ng,transfer,8.00,markup,rate,0.15,,,,0.075,exclusive",
+          ".ng,renew,10.00,markup,rate,0.10,,,,0.075,exclusive",
+          ".ng,renew,10.00,discount,rate,0.05,Loyalty renewal,,,,",
+        ].join("\n"),
+        // Hidden 10-15% markup baked into unitPrice, a context-eligible launch discount, a flat
+        // ICANN fee, and a separate renewal price with its own markup and loyalty discount.
+        lines: [
+          { sku: '.ng', quantity: 1, variant: '', country: '', frequency: 'one-time' },
+          { sku: '.ng', quantity: 1, variant: 'transfer', country: '', frequency: 'one-time' },
+          { sku: '.ng', quantity: 2, variant: 'renew', country: '', frequency: 'one-time' },
+        ],
+        context: 'customer_tier=standard',
+      },
+      'SaaS subscription (annual discount + seats)': {
+        csv: [
+          "product_sku,frequency,frequency_interval,price_amount,adjustment_kind,adjustment_type,adjustment_value,adjustment_label",
+          "pro-plan,recurring,month,29.00,markup,rate,0.30,",
+          "pro-plan,recurring,year,290.00,markup,rate,0.30,",
+          "pro-plan,recurring,year,290.00,discount,rate,0.15,Annual commitment",
+          "seat-addon,recurring,month,9.00,,,,",
+        ].join("\n"),
+        // The 30% markup is baked into unitPrice for both billing periods (never itemized); the
+        // annual plan additionally carries a visible 15% commitment discount. Two frequency
+        // groups (monthly seats, yearly plan) show up as separate totals in the cart.
+        lines: [
+          { sku: 'pro-plan', quantity: 1, variant: '', country: '', frequency: 'year' },
+          { sku: 'seat-addon', quantity: 4, variant: '', country: '', frequency: 'month' },
+        ],
+        context: '',
+      },
+      'Multi-region tax (US exclusive, DE inclusive)': {
+        csv: [
+          "product_sku,country_code,price_amount,tax_rate,tax_behavior",
+          "widget,US,20.00,0.08,exclusive",
+          "widget,DE,20.00,0.19,inclusive",
+          "widget,,20.00,0.05,exclusive",
+        ].join("\n"),
+        // Same sticker price, three tax treatments: US tax adds on top, German VAT is already
+        // baked in (silent unless debug mode is on), and everywhere else falls back to a
+        // wildcard rate.
+        lines: [
+          { sku: 'widget', quantity: 1, variant: '', country: 'US', frequency: 'one-time' },
+          { sku: 'widget', quantity: 1, variant: '', country: 'DE', frequency: 'one-time' },
+          { sku: 'widget', quantity: 1, variant: '', country: '', frequency: 'one-time' },
+        ],
+        context: '',
+      },
+      'B2B volume pricing (compound tax + enterprise discount)': {
+        csv: [
+          "product_sku,min_quantity,max_quantity,price_amount,tax_id,tax_rate,tax_behavior,tax_compound,adjustment_kind,adjustment_type,adjustment_value,adjustment_label,adjustment_constraints,adjustment_basis",
+          "hosting,1,9,60.00,gst,0.05,exclusive,false,,,,,,",
+          "hosting,1,9,60.00,qst,0.09975,exclusive,true,,,,,,",
+          "hosting,10,,50.00,gst,0.05,exclusive,false,,,,,,",
+          "hosting,10,,50.00,qst,0.09975,exclusive,true,,,,,,",
+          "hosting,10,,50.00,,,,,discount,rate,0.12,Enterprise contract,customer_tier=enterprise,",
+          "hosting,10,,50.00,,,,,fee,amount,25.00,Onboarding,,line",
+        ].join("\n"),
+        // A volume tier (10+) with a compound two-part tax (GST then QST on GST-inclusive base),
+        // a context-eligible enterprise discount, and a flat onboarding fee — the enterprise
+        // discount only shows up once the context field below carries customer_tier=enterprise.
+        lines: [
+          { sku: 'hosting', quantity: 12, variant: '', country: '', frequency: 'one-time' },
+        ],
+        context: 'customer_tier=enterprise',
+      },
       '⚠ The missing zero (ambiguous)': "product_sku,price_amount\n.ng,50.00\n.ng,5.00",
       '⚠ Crossed axes (ambiguous)': "product_sku,product_variant,country_code,price_amount\n.ng,transfer,,8.00\n.ng,,NG,9.00",
     };
@@ -307,7 +385,15 @@
     el('presets').addEventListener('click', (e) => {
       const btn = e.target.closest('button');
       if (!btn) return;
-      el('csv').value = PRESETS[btn.dataset.preset];
+      const preset = PRESETS[btn.dataset.preset];
+      const isRich = typeof preset === 'object';
+      el('csv').value = isRich ? preset.csv : preset;
+      if (isRich) {
+        lines.length = 0;
+        for (const l of preset.lines) lines.push({ id: lineIdSeq++, ...l });
+        renderLines();
+        el('context').value = preset.context ?? '';
+      }
       recompute();
     });
 
@@ -375,6 +461,7 @@
     for (const id of ['csv', 'currency', 'asof', 'context']) {
       el(id).addEventListener('input', recompute);
     }
+    el('debug-toggle').addEventListener('change', recompute);
 
     function formatMoney(minor, currency) {
       try {
@@ -414,7 +501,7 @@
         return;
       }
 
-      const q = new Quotes(config);
+      const q = new Quotes(config, { debug: el('debug-toggle').checked });
       const asOf = el('asof').value ? new Date(el('asof').value) : undefined;
       const request = {
         currency: el('currency').value.trim() || 'USD',
@@ -446,26 +533,43 @@
         return;
       }
 
+      console.log('quote', quote);
+
       let html = '';
       for (const line of quote.lines) {
         html += `<div class="line-quote">
           <div class="title">${line.sku} × ${line.quantity}${line.variant ? ` (${line.variant})` : ''}</div>
-          <div class="row"><span class="k">Unit price</span><span class="v">${formatMoney(line.listUnitMinor, line.currency)}</span></div>
-          ${line.adjustments.map((a) => `<div class="row"><span class="k">${a.label || a.kind} (${a.id.split(':').pop()})</span><span class="v">${a.kind === 'discount' ? '-' : '+'}${formatMoney(Math.abs(a.amountMinor), line.currency)}</span></div>`).join('')}
-          ${line.unitMinor !== line.listUnitMinor ? `<div class="row"><span class="k">Unit price (after adjustments)</span><span class="v">${formatMoney(line.unitMinor, line.currency)}</span></div>` : ''}
-          <div class="row"><span class="k">Subtotal</span><span class="v">${formatMoney(line.subtotalMinor, line.currency)}</span></div>
-          ${line.taxes.map((t) => `<div class="row"><span class="k">Tax ${(t.rate * 100).toFixed(2)}%</span><span class="v">${formatMoney(t.chargedMinor, line.currency)}</span></div>`).join('')}
-          <div class="row total"><span class="k">Line total</span><span class="v">${formatMoney(line.totalMinor, line.currency)}</span></div>
+          <div class="row"><span class="k">Unit price</span><span class="v">${formatMoney(line.unitPrice, line.currency)}</span></div>
+          ${line.discounts.map((d) => `<div class="row"><span class="k">${d.label || 'Discount'} (${d.id.split(':').pop()})</span><span class="v">-${formatMoney(Math.abs(d.amount), line.currency)}</span></div>`).join('')}
+          ${line.fees.map((f) => `<div class="row"><span class="k">${f.label || 'Fee'} (${f.id.split(':').pop()})</span><span class="v">+${formatMoney(Math.abs(f.amount), line.currency)}</span></div>`).join('')}
+          ${line.salePrice !== line.unitPrice ? `<div class="row"><span class="k">Sale price</span><span class="v">${formatMoney(line.salePrice, line.currency)}</span></div>` : ''}
+          <div class="row"><span class="k">Subtotal</span><span class="v">${formatMoney(line.extendedSalePrice, line.currency)}</span></div>
+          ${line.taxes.map((t) => `<div class="row"><span class="k">Tax ${(t.rate * 100).toFixed(2)}%</span><span class="v">${formatMoney(t.amount, line.currency)}</span></div>`).join('')}
+          <div class="row total"><span class="k">Line total</span><span class="v">${formatMoney(line.total, line.currency)}</span></div>
           <div class="id">price ${line.priceId}</div>
+          ${line.debug ? `<div class="row group-head"><span class="k">Debug breakdown</span><span class="v"></span></div>
+          <div class="row"><span class="k">Cost price</span><span class="v">${formatMoney(line.debug.costPrice, line.currency)}</span></div>
+          ${line.debug.markup.map((m) => `<div class="row"><span class="k">${m.label || 'Markup'} (${m.id.split(':').pop()})</span><span class="v">+${formatMoney(Math.abs(m.amount), line.currency)}</span></div>`).join('')}
+          ${line.debug.inclusiveTaxes.map((t) => `<div class="row"><span class="k">Inclusive tax ${(t.rate * 100).toFixed(2)}%</span><span class="v">${formatMoney(t.amount, line.currency)}</span></div>`).join('')}
+          <div class="row"><span class="k">Tax liability</span><span class="v">${formatMoney(line.debug.taxLiability, line.currency)}</span></div>` : ''}
         </div>`;
       }
 
-      html += '<div class="line-quote">';
-      for (const g of quote.groups) {
-        html += `<div class="row group-head"><span class="k">${g.frequency === 'one-time' ? 'One-time' : `Recurring / ${g.interval}`}</span><span class="v"></span></div>`;
-        html += `<div class="row"><span class="k">Total</span><span class="v">${formatMoney(g.totalMinor, quote.currency)}</span></div>`;
+      // The API only returns per-line totals; bucket by billing period here, client-side, purely
+      // for display (e.g. "One-time" vs "Recurring / month" sub-totals above the grand total).
+      const periodTotals = new Map();
+      for (const line of quote.lines) {
+        const key = `${line.frequency}:${line.interval ?? ''}`;
+        periodTotals.set(key, (periodTotals.get(key) ?? 0) + line.total);
       }
-      html += `<div class="row total"><span class="k">Due now</span><span class="v">${formatMoney(quote.dueNowMinor, quote.currency)}</span></div>`;
+
+      html += '<div class="line-quote">';
+      for (const [key, total] of periodTotals) {
+        const [frequency, interval] = key.split(':');
+        html += `<div class="row group-head"><span class="k">${frequency === 'one-time' ? 'One-time' : `Recurring / ${interval}`}</span><span class="v"></span></div>`;
+        html += `<div class="row"><span class="k">Total</span><span class="v">${formatMoney(total, quote.currency)}</span></div>`;
+      }
+      html += `<div class="row total"><span class="k">Amount due</span><span class="v">${formatMoney(quote.amountDue, quote.currency)}</span></div>`;
       html += `<div class="id">asOf ${quote.asOf} · catalog ${quote.catalogHash.slice(0, 16)}…</div>`;
       html += '</div>';
 

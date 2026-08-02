@@ -1,4 +1,4 @@
-// Types for the CSV-catalog-driven quote engine. See design-docs/design-v2.md.
+// Types for the CSV-catalog-driven quote engine.
 
 /** Integer minor-unit amount. Validated at construction sites (see money.ts). */
 export type Money = number;
@@ -224,19 +224,37 @@ export interface CartRequest {
   context?: Record<string, string>;
 }
 
-export interface AppliedAdjustment {
+/** A discount, fee, markup, or line-level charge, as shown to a customer. Integer minor units. */
+export interface AppliedCharge {
   id: string;
-  kind: AdjustmentKind;
   label: string;
-  amountMinor: number;
+  amount: number;
 }
 
+/** A tax that actually adds to the customer's bill (exclusive behavior). Integer minor units. */
 export interface AppliedTax {
   id: string;
   label: string;
   rate: number;
-  chargedMinor: number;
-  addedMinor: number;
+  amount: number;
+}
+
+/**
+ * Debug-only breakdown, populated when `QuotesOptions.debug` is true. Surfaces business
+ * internals that are deliberately hidden from the plain `LineQuote` shape: the raw catalog
+ * cost, any markup baked into `unitPrice`, and any tax already baked into the price.
+ */
+export interface LineQuoteDebug {
+  /** `Price.baseUnitMinor` — the raw catalog price, before markup. */
+  costPrice: number;
+  /** Markup entries folded into `unitPrice`; never shown outside debug mode. */
+  markup: AppliedCharge[];
+  /** Same value as the public `unitPrice`, repeated here for a one-glance view. */
+  unitPrice: number;
+  /** Taxes baked into the price (never added to the bill), with their extracted amount. */
+  inclusiveTaxes: AppliedTax[];
+  /** Total real tax owed: exclusive taxes plus the extracted portion of inclusive ones. */
+  taxLiability: number;
 }
 
 export interface LineQuote {
@@ -249,33 +267,35 @@ export interface LineQuote {
   currency: string;
   frequency: Frequency;
   interval?: FrequencyInterval;
-  /** The catalog's list unit price: pre-adjustment, pre-charm (`Price.baseUnitMinor`). */
-  listUnitMinor: number;
-  /** Post-adjustment, post-charm unit price actually charged. `unitMinor * quantity === subtotalMinor`. */
-  unitMinor: number;
-  subtotalMinor: number;
-  adjustments: AppliedAdjustment[];
-  lineAdjustmentsMinor: number;
+  /** Regular unit price, catalog price with any markup already folded in. Integer minor units. */
+  unitPrice: number;
+  /** `unitPrice * quantity` — the pre-discount/fee/charm "list" line total. */
+  extendedUnitPrice: number;
+  /** Actual unit price charged, after discounts/fees/charm. `salePrice * quantity === extendedSalePrice`. */
+  salePrice: number;
+  /**
+   * `salePrice * quantity`. Computed before `netLineAdjustment` and tax, so
+   * `extendedSalePrice + tax !== total` in general — see `total` for the final tax-inclusive amount.
+   */
+  extendedSalePrice: number;
+  discounts: AppliedCharge[];
+  fees: AppliedCharge[];
+  /**
+   * Net line-basis fee minus discount amount (markup excluded — see `debug`). Unit-basis
+   * fee/discount adjustments are itemized separately in `fees`/`discounts`.
+   */
+  netLineAdjustment: number;
+  /** Taxes that actually add to the bill. Inclusive (baked-in) taxes are omitted — see `debug`. */
   taxes: AppliedTax[];
-  taxChargedMinor: number;
-  taxAddedMinor: number;
-  totalMinor: number;
-}
-
-export interface PeriodTotal {
-  frequency: Frequency;
-  interval?: FrequencyInterval;
-  subtotalMinor: number;
-  adjustmentsMinor: number;
-  taxableMinor: number;
-  taxMinor: number;
-  totalMinor: number;
+  /** Total tax added to the bill (0 when all applicable taxes are inclusive). */
+  tax: number;
+  total: number;
+  debug?: LineQuoteDebug;
 }
 
 export interface CartQuote {
   lines: LineQuote[];
-  groups: PeriodTotal[];
-  dueNowMinor: number;
+  amountDue: number;
   currency: string;
   asOf: string;
   catalogHash: string;

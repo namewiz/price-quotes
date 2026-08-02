@@ -1,4 +1,4 @@
-// The CSV contract. See design-docs/design-v2.md, "The CSV contract".
+// The CSV contract.
 
 import { Issue } from "./errors.js";
 

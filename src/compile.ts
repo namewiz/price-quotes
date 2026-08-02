@@ -1,4 +1,4 @@
-// Orchestrates catalog compilation end to end. See design-docs/design-v2.md, "Catalog compilation".
+// Orchestrates catalog compilation end to end.
 
 import { CatalogConfig, CatalogDefaults, CatalogRowInput, CurrencyMeta, Product } from "./types.js";
 import { Issue, throwIfIssues } from "./errors.js";

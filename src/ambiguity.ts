@@ -1,5 +1,4 @@
 // Step 9 of Compilation: prove unambiguity, then build the O(1) index.
-// See design-docs/design-v2.md, "Price resolution".
 
 import { Band, Price, PriceBucket, PriceIndex, Product } from "./types.js";
 import { Issue } from "./errors.js";

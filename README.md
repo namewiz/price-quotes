@@ -33,7 +33,7 @@ is the short version.
    construction happens at quote time — all of it is precomputed at load.
 7. **Correct, reconcilable money math.** All amounts are integer minor units. Quantization
    (representation) and charm (pricing policy, e.g. `$X.99`) are two distinct mechanisms that
-   never get conflated; `unitMinor × quantity` is always exact, so unit, subtotal and total
+   never get conflated; `unitMinor × quantity` is always exact, so unit, extended and total
    reconcile.
 8. **Reproducible.** A quote is a pure function of `(catalog, cart, asOf)`. It records the
    catalog hash and `asOf` it was computed against, so it can be replayed from an audit log.
@@ -66,8 +66,15 @@ const cart = quotes.quoteCart({
   ],
 });
 
-console.log(cart.dueNowMinor, cart.currency, cart.catalogHash);
+console.log(cart.amountDue, cart.currency, cart.catalogHash);
 ```
+
+Each line in `cart.lines` reads like an invoice line — `unitPrice`, `extendedUnitPrice`,
+`salePrice`, `extendedSalePrice`, `discounts`, `fees`, `taxes`, `tax`, `total` — all integer
+minor units. Catalog markup (if any)
+is folded into `unitPrice` and never itemized; a tax only appears in `taxes` if it actually adds
+to the bill (inclusive tax is baked into the price already, so it's silent in the normal output —
+see "Debug breakdown" below).
 
 `loadCatalog` also accepts a plain array of row objects instead of CSV text — useful when rows
 come from a database or a form rather than a spreadsheet:
@@ -91,7 +98,9 @@ adjustment (discount/markup/fee) fact. Two placements are worth knowing up front
   "Scenario 7" in the design doc.
 
 A price with both a discount *and* a fee is authored as two rows that repeat the price — they
-merge into one price with two adjustments, not two competing prices:
+merge into one price with two adjustments, not two competing prices. Note that a catalog row
+can also declare `adjustment_kind=markup`; markup changes what `unitPrice` *is* (the seller's
+margin) and is never returned as a separate line item in the quote — see "Debug breakdown":
 
 ```csv
 product_sku,price_amount,adjustment_kind,adjustment_type,adjustment_value,adjustment_label
@@ -118,6 +127,53 @@ loadCatalog(csv, {
   price_sanity_range: { NGN: [100, 10_000_000] },
 });
 ```
+
+## Debug breakdown
+
+The plain quote hides two things that are the seller's business, not the customer's: any catalog
+markup baked into `unitPrice`, and any tax already baked into the price (inclusive tax, which
+never appears in `taxes` since nothing was added to the bill). Pass `debug: true` to see them:
+
+```ts
+const quotes = new Quotes(config, { debug: true });
+const cart = quotes.quoteCart({ currency: "USD", lines: [{ sku: ".ng", quantity: 1 }] });
+
+const { costPrice, markup, unitPrice, inclusiveTaxes, taxLiability } = cart.lines[0].debug;
+```
+
+`costPrice` is the raw catalog price before markup; `markup` itemizes what was folded into
+`unitPrice`; `inclusiveTaxes` itemizes taxes baked into the price; `taxLiability` is the total
+tax actually owed (exclusive taxes plus the extracted portion of inclusive ones), which can
+differ from the customer-facing `tax` field. `debug` is `undefined` on every line when the option
+isn't set, so the default output stays exactly invoice-shaped.
+
+## Glossary of price/amount terms
+
+All amounts are integer minor units (cents, kobo, ...). Fields are listed in pipeline order —
+each stage builds on the one before it.
+
+| Term | Meaning |
+|---|---|
+| `unitPrice` | Regular per-unit price: catalog price with any markup already folded in. Pre-discount/fee/charm — this is the "list price" a customer would see before any deal. |
+| `extendedUnitPrice` | `unitPrice * quantity` — the pre-discount "list" line total. |
+| `salePrice` | Actual per-unit price charged, after discounts/unit-adjusted-fees/charm are applied on top of `unitPrice`. |
+| `extendedSalePrice` | `salePrice * quantity`. Computed before `netLineAdjustment` and tax, so `extendedSalePrice + tax` is *not* generally equal to `total`. |
+| `discounts` / `fees` | Itemized unit-basis discount/fee adjustments (`AppliedCharge[]`), valued against `unitPrice`. Markup entries are never itemized here — see `debug.markup`. |
+| `netLineAdjustment` | Net *line-basis* fee minus discount amount (as opposed to the unit-basis adjustments in `discounts`/`fees`). Can be negative when the line discount exceeds the line fee. |
+| `taxes` | Taxes that actually add to the bill (`AppliedTax[]`). Inclusive (baked-in) taxes are omitted here — see `debug.inclusiveTaxes`. |
+| `tax` | Total tax added to the bill; the sum of `taxes[].amount`. Zero when all applicable taxes are inclusive. |
+| `total` | Final line amount due, tax-inclusive: `extendedSalePrice + netLineAdjustment + tax` (inclusive tax is already baked in, so it doesn't add on top). |
+| `amountDue` | Sum of every line's `total` for a `CartQuote` — the amount the customer actually owes for the cart. |
+
+Debug-only fields (`LineQuote.debug`, populated only when `QuotesOptions.debug` is `true`):
+
+| Term | Meaning |
+|---|---|
+| `costPrice` | `Price.baseUnitMinor` — the raw catalog price, before markup. |
+| `markup` | Itemized markup adjustments (`AppliedCharge[]`), valued against `costPrice`. The seller's margin, never shown outside debug mode. |
+| `unitPrice` (debug) | Duplicate of the public `unitPrice`, repeated here for a one-glance view alongside `costPrice`/`markup`. |
+| `inclusiveTaxes` | Taxes baked into the price (never added to the bill), with their extracted amount. |
+| `taxLiability` | Total real tax owed: exclusive tax plus the extracted portion of inclusive tax. Differs from the customer-facing `tax` field, which only counts tax actually added to the bill. |
 
 ## Errors
 

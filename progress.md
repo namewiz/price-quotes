@@ -9,6 +9,46 @@ All 20 tasks below are complete. 95/95 tests pass (`npm test`). See "Blockers / 
 for the handful of places this implementation had to make a judgment call the design doc didn't
 fully settle, or where it deviates from the doc's prose in favor of the doc's own formal rules.
 
+## Follow-up: business-friendly output API
+
+Implemented per `design-docs/design-v2-addendum-business-api.md`: `LineQuote`/`CartQuote`/
+`PeriodTotal` were renamed to invoice-shaped fields (`basePrice`, `salePrice`, `subtotal`,
+`discounts`/`fees`, `tax`, `total`, `amountDue`) and dropped the `Minor` suffix. Markup is now
+applied first, folded into `basePrice`, and never itemized; a tax only appears in `taxes` when
+it actually adds to the bill (inclusive tax is silent by default). An opt-in `debug` breakdown
+(`QuotesOptions.debug`) exposes the raw catalog cost, itemized markup, itemized inclusive tax,
+and total tax liability for developers/business owners. CSV column names and the compiled
+catalog types (`Price`, `Adjustment`, ...) were intentionally left unchanged — this is a scoped
+API-only rename, not a change to the spreadsheet contract. 97/97 tests pass. As a result,
+`design-docs/design-v2.md` (the original spec) now documents older field names/behavior than the
+shipped API; the addendum is the current source of truth for the output shape.
+
+## Follow-up: removed `CartQuote.groups`/`PeriodTotal`
+
+Confirmed presentation-only (traced every reference in `src`/`tests`/`docs`/`README.md`) before
+removing: `amountDue` was already computable straight from `lines` without `groups`, and nothing
+in the pricing pipeline read `PeriodTotal`. Removed both from `src/types.ts` and simplified
+`quoteCart`'s `amountDue` calc in `src/quote.ts` accordingly. The demo (`docs/index.html`) now
+buckets `quote.lines` by `frequency`/`interval` client-side to keep its per-period sub-total
+rows. See `design-docs/design-v2-addendum-business-api.md`'s follow-up note.
+
+## Follow-up: renamed `basePrice` to `unitPrice`
+
+Per `design-docs/design-v2-addendum-unitprice-rename.md`: `LineQuote.basePrice` and
+`LineQuoteDebug.basePrice` are now `unitPrice` — a plain rename (no computation/validation/CSV
+contract change) to disambiguate it from `LineQuoteDebug.costPrice` (the raw, pre-markup catalog
+price) and better name what the field actually is: the regular per-unit price before
+discount/fee/charm. 97/97 tests pass.
+
+## Follow-up: renamed `subtotal`/`otherCharges`, added `extendedUnitPrice`
+
+Per `design-docs/design-v2-addendum-line-field-rename.md`: `LineQuote.subtotal` is now
+`extendedSalePrice` and `LineQuote.otherCharges` is now `netLineAdjustment`, adopting `extended
+<X>` (standard invoicing term for "price × quantity") as a consistent pattern. New field
+`extendedUnitPrice` (`unitPrice * quantity`) was added alongside it, giving `extendedUnitPrice`/
+`extendedSalePrice` a matched pre-/post-discount pair. No computation change — pure rename plus
+one additive derived field. 97/97 tests pass.
+
 ## Verification (design doc's "Verification" checklist)
 
 1. ✅ Test suite passes — 95/95 (`tests/*.test.js`).
