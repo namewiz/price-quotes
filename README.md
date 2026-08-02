@@ -299,6 +299,22 @@ Core invariant: **`src/core/` imports nothing from `src/presets/` and does no I/
 takes an in-memory catalog and returns quotes. Every product-specific assumption lives
 behind a preset.
 
+## Demo playground
+
+`docs/index.html` is a self-contained, static demo — no server-side code, no network
+access required. It runs against `docs/price-quotes.js`, a committed browser bundle of
+`src/bundle.ts` (core + both presets), so it works straight off disk or from GitHub
+Pages.
+
+`docs/config-driven.html` is a second demo focused on one property: the engine is driven
+entirely by a plain JSON config, no code. It shows three editable JSON panels — config,
+request, response — with presets that prefill both sides of the call so you can see how
+changing the config JSON alone changes what a fixed request quotes to.
+
+```bash
+npm run start # creates preview link for demo
+```
+
 ## Testing
 
 ```bash

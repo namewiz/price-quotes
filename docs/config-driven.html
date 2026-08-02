@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Price Quotes — config-driven demo</title>
+  <style>
+    :root {
+      --bg: #f7f8fa;
+      --card: #fff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --line: #e5e7eb;
+      --ring: #cbd5e1;
+      --accent: #4f46e5;
+      --accent-soft: #eef2ff;
+      --danger: #dc2626;
+      --danger-soft: #fef2f2;
+      --ok: #059669;
+      --ok-soft: #ecfdf5;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      --shadow: 0 8px 30px rgba(2, 6, 23, .06);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1120;
+        --card: #131c2e;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --line: #263449;
+        --ring: #33415a;
+        --accent: #818cf8;
+        --accent-soft: #1e243d;
+        --danger: #f87171;
+        --danger-soft: #2a1414;
+        --ok: #34d399;
+        --ok-soft: #0f2a22;
+        --shadow: 0 8px 30px rgba(0, 0, 0, .35);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+    }
+
+    .wrap {
+      max-width: 1720px;
+      margin: 0 auto;
+      padding: 32px 20px 64px;
+    }
+
+    header h1 {
+      margin: 0 0 4px;
+      font-size: 26px;
+      letter-spacing: -.02em;
+    }
+
+    header p {
+      margin: 0 0 8px;
+      color: var(--muted);
+      max-width: 78ch;
+    }
+
+    code.inline {
+      background: var(--accent-soft);
+      color: var(--accent);
+      padding: 1px 6px;
+      border-radius: 5px;
+      font-size: .88em;
+      font-family: var(--mono);
+    }
+
+    .presets {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 20px 0 22px;
+    }
+
+    .presets button {
+      padding: 8px 14px;
+      border: 1px solid var(--ring);
+      border-radius: 999px;
+      background: var(--card);
+      color: var(--text);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .presets button[aria-pressed="true"] {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    .presets button:hover { border-color: var(--accent); }
+
+    .cols {
+      display: grid;
+      grid-template-columns: 1.8fr 1fr 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    @media (max-width: 1200px) { .cols { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card h2 {
+      margin: 0 0 4px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card .hint {
+      margin: 0 0 12px;
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+
+    .status {
+      font-size: 11px;
+      text-transform: none;
+      letter-spacing: 0;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--ok-soft);
+      color: var(--ok);
+    }
+
+    .status.bad { background: var(--danger-soft); color: var(--danger); }
+
+    textarea, pre.output {
+      width: 100%;
+      flex: 1;
+      min-height: 420px;
+      resize: vertical;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--ring);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font: 13px/1.5 var(--mono);
+      tab-size: 2;
+    }
+
+    #config-input { min-height: 840px; }
+
+    textarea { white-space: pre; }
+
+    textarea.invalid { border-color: var(--danger); }
+
+    pre.output {
+      margin: 0;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    pre.output.error { color: var(--danger); }
+
+    .err-line {
+      margin-top: 8px;
+      font-size: 12.5px;
+      color: var(--danger);
+      min-height: 1.2em;
+    }
+
+    footer {
+      margin-top: 40px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    footer a { color: var(--accent); }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Price Quotes — config-driven demo</h1>
+      <p>
+        Everything the engine knows comes from one plain JSON object — no code, no classes,
+        no functions. Edit the <b>config</b> (the catalog, currencies, taxes, discounts, …),
+        edit the <b>request</b> (what's being quoted), and the <b>response</b> recomputes live,
+        entirely in your browser.
+      </p>
+      <p>
+        <code class="inline">new Quotes(config).quote(request, options)</code> — the two boxes
+        on the left are literally that call's arguments, serialized.
+      </p>
+    </header>
+
+    <div class="presets" id="presets"></div>
+
+    <div class="cols">
+      <div class="card">
+        <h2>Config <span class="status" id="config-status">valid</span></h2>
+        <p class="hint">A plain <code class="inline">QuotesConfig</code> JSON object — catalog, currencies, rates, taxes, discounts, rounding.</p>
+        <textarea id="config-input" spellcheck="false"></textarea>
+        <div class="err-line" id="config-err"></div>
+      </div>
+
+      <div class="card">
+        <h2>Request <span class="status" id="request-status">valid</span></h2>
+        <p class="hint">A plain JSON object: <code class="inline">QuoteRequest</code> fields plus an optional top-level <code class="inline">explore</code> flag.</p>
+        <textarea id="request-input" spellcheck="false"></textarea>
+        <div class="err-line" id="request-err"></div>
+      </div>
+
+      <div class="card">
+        <h2>Response</h2>
+        <p class="hint">The exact object returned by <code class="inline">engine.quote()</code>, as JSON.</p>
+        <pre class="output" id="response-output"></pre>
+      </div>
+    </div>
+
+    <footer>
+      Powered by <code class="inline">price-quotes</code> running entirely in your browser.
+      <a href="./index.html">Full playground →</a> ·
+      <a href="https://github.com/namewiz/price-quotes">Source &amp; docs →</a>
+    </footer>
+  </div>
+
+  <script type="module">
+    let mod;
+    try {
+      mod = await import('./price-quotes.js');
+    } catch (err) {
+      document.querySelector('.wrap').innerHTML =
+        '<div class="hint">Could not load the engine bundle (docs/price-quotes.js). Run <code class="inline">npm run build</code>.</div>';
+      throw err;
+    }
+    const { Quotes } = mod;
+    const el = (id) => document.getElementById(id);
+
+    // -------------------------------------------------------------- presets --
+    // Every preset is plain, function-free JSON — proof that the whole engine
+    // is driven by data, not code wired up at call time.
+    const PRESETS = [
+      {
+        name: 'Minimal',
+        config: {
+          catalog: {
+            products: [
+              { sku: 'widget', name: 'Widget', variants: [{ id: 'standard' }], intervals: [{ unit: 'once' }] },
+            ],
+            rules: [
+              { sku: 'widget', amount: { USD: 10 } },
+            ],
+          },
+          currencies: [{ code: 'USD', symbol: '$', exponent: 2 }],
+          baseCurrency: 'USD',
+        },
+        request: {
+          sku: 'widget',
+          currency: 'USD',
+          quantity: 3,
+        },
+      },
+      {
+        name: 'SaaS seats: tiers + FX + tax',
+        config: {
+          catalog: {
+            products: [
+              {
+                sku: 'seats',
+                name: 'Seats',
+                groups: ['software'],
+                variants: [{ id: 'standard', name: 'Standard' }],
+                intervals: [{ unit: 'month' }, { unit: 'year' }],
+              },
+            ],
+            rules: [
+              { sku: 'seats', interval: 'month', amount: { USD: 20, NGN: 30000 }, label: 'seats:month:list' },
+              { sku: 'seats', interval: 'month', minQuantity: 5, amount: { USD: 16 }, label: 'seats:month:5+' },
+              { sku: 'seats', interval: 'month', minQuantity: 20, amount: { USD: 12 }, label: 'seats:month:20+' },
+              { sku: 'seats', interval: 'year', amount: { USD: 200, NGN: 300000 }, label: 'seats:year:list' },
+              { sku: 'seats', interval: 'year', minTerm: 2, amount: { USD: 180 }, label: 'seats:year:2yr+' },
+            ],
+          },
+          currencies: [
+            { code: 'USD', symbol: '$', exponent: 2 },
+            { code: 'EUR', symbol: '€', exponent: 2 },
+            { code: 'NGN', symbol: '₦', exponent: 2, roundingIncrement: 100 },
+          ],
+          rates: { EUR: 0.92, NGN: 1600 },
+          baseCurrency: 'USD',
+          taxes: [
+            { id: 'fed', name: 'Federal tax', rate: 0.05 },
+            { id: 'state', name: 'State tax (compounds)', rate: 0.03, compound: true },
+          ],
+        },
+        request: {
+          sku: 'seats',
+          interval: 'month',
+          quantity: 8,
+          currency: 'USD',
+          explore: true,
+        },
+      },
+      {
+        name: 'Discount stacking',
+        config: {
+          catalog: {
+            products: [
+              { sku: 'seats', name: 'Seats', variants: [{ id: 'standard' }], intervals: [{ unit: 'month' }] },
+            ],
+            rules: [
+              { sku: 'seats', interval: 'month', amount: { USD: 20 } },
+            ],
+          },
+          currencies: [{ code: 'USD', symbol: '$', exponent: 2 }],
+          baseCurrency: 'USD',
+          discounts: {
+            SAVE10: { rate: 0.10 },
+            BUNDLE5: { rate: 0.05 },
+          },
+        },
+        request: {
+          sku: 'seats',
+          currency: 'USD',
+          quantity: 4,
+          discountCodes: ['SAVE10', 'BUNDLE5'],
+          discountPolicy: 'stack',
+        },
+      },
+      {
+        name: 'Domain lifecycle: sku vs group rules',
+        config: {
+          catalog: {
+            products: [
+              {
+                sku: 'com',
+                name: '.com',
+                groups: ['gtld'],
+                variants: [
+                  { id: 'create', name: 'Create' },
+                  { id: 'renew', name: 'Renew', substitutionGroup: 'com-lifecycle' },
+                ],
+                intervals: [{ unit: 'year' }],
+              },
+              {
+                sku: 'xyz',
+                name: '.xyz',
+                groups: ['gtld'],
+                variants: [{ id: 'create', name: 'Create' }],
+                intervals: [{ unit: 'year' }],
+              },
+            ],
+            rules: [
+              { sku: 'com', variant: 'create', amount: { USD: 12.99 }, label: 'com:create' },
+              { sku: 'com', variant: 'renew', amount: { USD: 14.99 }, label: 'com:renew' },
+              { group: 'gtld', amount: { USD: 9.99 }, label: 'gtld:fallback' },
+            ],
+          },
+          currencies: [{ code: 'USD', symbol: '$', exponent: 2 }],
+          baseCurrency: 'USD',
+        },
+        request: {
+          sku: 'xyz',
+          variant: 'create',
+          currency: 'USD',
+          term: 2,
+        },
+      },
+      {
+        name: 'Minimum charge + inclusive VAT',
+        config: {
+          catalog: {
+            products: [
+              { sku: 'seats', name: 'Seats', variants: [{ id: 'standard' }], intervals: [{ unit: 'month' }] },
+            ],
+            rules: [
+              { sku: 'seats', interval: 'month', amount: { USD: 5 } },
+            ],
+          },
+          currencies: [{ code: 'USD', symbol: '$', exponent: 2 }],
+          baseCurrency: 'USD',
+          taxes: [{ id: 'vat', name: 'Inclusive VAT 20%', rate: 0.20, inclusive: true }],
+          minChargeableTotal: { USD: 10 },
+        },
+        request: {
+          // 1 x $5 is under the $10 floor: shows BelowMinimumChargeError out of the box.
+          sku: 'seats',
+          currency: 'USD',
+          quantity: 1,
+        },
+      },
+    ];
+
+    const configInput = el('config-input');
+    const requestInput = el('request-input');
+    const responseOutput = el('response-output');
+
+    function setStatus (id, ok) {
+      const badge = el(id);
+      badge.textContent = ok ? 'valid' : 'invalid';
+      badge.classList.toggle('bad', !ok);
+    }
+
+    function parseField (textarea, errBox, statusId) {
+      textarea.classList.remove('invalid');
+      errBox.textContent = '';
+      try {
+        const value = JSON.parse(textarea.value);
+        setStatus(statusId, true);
+        return { ok: true, value };
+      } catch (err) {
+        textarea.classList.add('invalid');
+        errBox.textContent = `JSON error: ${err.message}`;
+        setStatus(statusId, false);
+        return { ok: false };
+      }
+    }
+
+    async function run () {
+      const config = parseField(configInput, el('config-err'), 'config-status');
+      const request = parseField(requestInput, el('request-err'), 'request-status');
+
+      if (!config.ok || !request.ok) {
+        responseOutput.className = 'output error';
+        responseOutput.textContent = 'Fix the JSON error(s) above to see a response.';
+        return;
+      }
+
+      const { explore, ...quoteRequest } = request.value;
+
+      try {
+        const engine = new Quotes(config.value);
+        const quote = await engine.quote(quoteRequest, { explore });
+        responseOutput.className = 'output';
+        responseOutput.textContent = JSON.stringify(quote, null, 2);
+      } catch (err) {
+        responseOutput.className = 'output error';
+        responseOutput.textContent = JSON.stringify(
+          { error: { name: err.name, code: err.code, message: err.message } },
+          null,
+          2
+        );
+      }
+    }
+
+    let debounceTimer;
+    function scheduleRun () {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(run, 250);
+    }
+
+    configInput.addEventListener('input', scheduleRun);
+    requestInput.addEventListener('input', scheduleRun);
+
+    function loadPreset (preset, btn) {
+      document.querySelectorAll('#presets button').forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
+      configInput.value = JSON.stringify(preset.config, null, 2);
+      requestInput.value = JSON.stringify(preset.request, null, 2);
+      run();
+    }
+
+    const presetsBox = el('presets');
+    PRESETS.forEach((preset, i) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = preset.name;
+      btn.setAttribute('aria-pressed', String(i === 0));
+      btn.addEventListener('click', () => loadPreset(preset, btn));
+      presetsBox.appendChild(btn);
+    });
+
+    loadPreset(PRESETS[0], presetsBox.children[0]);
+  </script>
+</body>
+
+</html>
