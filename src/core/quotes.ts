@@ -42,8 +42,8 @@ export class Quotes {
     const exploreOptions = resolveExploreOptions(options.explore);
     if (!exploreOptions) return quote;
 
-    const { insights, alternatives } = await runExplore(ctx, quote, exploreOptions);
-    return { ...quote, insights, alternatives };
+    const { insights } = await runExplore(ctx, quote, exploreOptions);
+    return { ...quote, insights };
   }
 
   private resolveRequest (request: QuoteRequest): ResolvedRequest {

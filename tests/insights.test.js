@@ -32,7 +32,6 @@ function insightOf (quote, kind) {
 test('exploration is off by default', async () => {
   const quote = await subscription().quote({ sku: 'pro', currency: 'USD', interval: 'month' });
   assert.deepEqual(quote.insights, []);
-  assert.deepEqual(quote.alternatives, []);
 });
 
 test('yearly beating monthly x12 is surfaced, with the horizon stated', async () => {
@@ -326,7 +325,7 @@ test('maxCandidates caps how many counterfactuals get priced', async () => {
     taxes: [],
   });
   const capped = await q.quote({ sku: 'seat', currency: 'USD', quantity: 1 }, { explore: { maxCandidates: 3 } });
-  assert.ok(capped.alternatives.length <= 3);
+  assert.ok(capped.insights.length <= 3);
 });
 
 test('exploration reuses eligibility results rather than re-running callbacks per candidate', async () => {

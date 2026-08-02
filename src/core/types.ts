@@ -320,10 +320,8 @@ export interface Quote {
   total: Money;
   rate?: NormalizedRate;
   explain: Explanation;
-  /** Empty unless `explore` was enabled. */
+  /** Empty unless `explore` was enabled. Each insight's `quote` is the priced counterfactual. */
   insights: Insight[];
-  /** The priced counterfactuals behind `insights`. Empty unless `explore` was enabled. */
-  alternatives: Quote[];
 }
 
 export interface ExploreOptions {

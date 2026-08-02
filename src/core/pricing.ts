@@ -254,7 +254,6 @@ export async function priceQuote (ctx: PriceContext, req: ResolvedRequest): Prom
     rate: normalizedRate(meta, total, req),
     explain,
     insights: [],
-    alternatives: [],
   };
 }
 

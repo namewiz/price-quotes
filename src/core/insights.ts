@@ -34,7 +34,7 @@ export async function explore (
   ctx: PriceContext,
   baseline: Quote,
   opts: ExploreOptions
-): Promise<{ insights: Insight[]; alternatives: Quote[] }> {
+): Promise<{ insights: Insight[] }> {
   const product = ctx.catalog.getProduct(baseline.request.sku);
   const candidates = buildCandidates(ctx.catalog, product, baseline, ctx, opts).slice(
     0,
@@ -42,7 +42,6 @@ export async function explore (
   );
 
   const insights: Insight[] = [];
-  const alternatives: Quote[] = [];
   const minPercent = opts.minSavingsPercent ?? DEFAULTS.minSavingsPercent;
 
   for (const candidate of candidates) {
@@ -60,11 +59,10 @@ export async function explore (
     const insight = classify(baseline, quote, candidate, opts, minPercent);
     if (!insight) continue;
     insights.push(insight);
-    alternatives.push(quote);
   }
 
   insights.sort(byValue);
-  return { insights, alternatives };
+  return { insights };
 }
 
 function buildCandidates (
