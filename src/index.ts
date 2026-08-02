@@ -1,11 +1,7 @@
-/**
- * A generic quote engine.
- *
- * This entry point is pure: it performs no I/O and no network access at import time.
- * Product-specific knowledge (and any data fetching it needs) lives in presets:
- *
- *   import { Quotes } from 'price-quotes';
- *   import { domainsPreset } from 'price-quotes/presets/domains';
- *   import { softwareQuotes } from 'price-quotes/presets/software';
- */
-export * from './core';
+export * from "./types.js";
+export { QuoteError, CatalogError } from "./errors.js";
+export type { Issue, ErrorCode, LoadErrorCode, QuoteTimeErrorCode } from "./errors.js";
+export { loadCatalog } from "./compile.js";
+export { Quotes } from "./quote.js";
+export type { QuotesOptions } from "./quote.js";
+export { buildCurrencyMeta } from "./currency.js";

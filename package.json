@@ -6,8 +6,8 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "npx -y esbuild src/index.ts src/presets/domains/index.ts src/presets/software/index.ts --bundle --minify --format=esm --target=esnext --outdir=dist/ --outbase=src --splitting --platform=neutral && npx -y -p typescript@5 tsc --emitDeclarationOnly",
-    "postbuild": "npx -y esbuild src/bundle.ts --bundle --minify --format=esm --target=esnext --outfile=docs/price-quotes.js --platform=neutral",
+    "build": "npx -y esbuild src/index.ts --bundle --minify --format=esm --target=esnext --outdir=dist/ --outbase=src --platform=neutral && npx -y -p typescript@5 tsc --emitDeclarationOnly",
+    "postbuild": "npx -y esbuild src/index.ts --bundle --minify --format=esm --target=esnext --outfile=docs/price-quotes.js --platform=neutral",
     "test": "npm run build && node --test",
     "start": "npm run build && npx serve docs"
   },
@@ -37,18 +37,13 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./presets/domains": {
-      "types": "./dist/presets/domains/index.d.ts",
-      "default": "./dist/presets/domains/index.js"
-    },
-    "./presets/software": {
-      "types": "./dist/presets/software/index.d.ts",
-      "default": "./dist/presets/software/index.js"
     }
   },
   "license": "MIT",
   "files": [
     "dist"
-  ]
+  ],
+  "devDependencies": {
+    "@types/node": "^26.1.2"
+  }
 }

@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Price Quotes — pricing playground</title>
+  <title>Price Quotes — CSV catalog playground</title>
   <style>
     :root {
       --bg: #f7f8fa;
@@ -17,13 +17,11 @@
       --accent-soft: #eef2ff;
       --dominant: #059669;
       --dominant-soft: #ecfdf5;
-      --strong: #2563eb;
-      --strong-soft: #eff6ff;
-      --info: #64748b;
       --info-soft: #f1f5f9;
       --danger: #dc2626;
       --danger-soft: #fef2f2;
       --shadow: 0 8px 30px rgba(2, 6, 23, .06);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     }
 
     @media (prefers-color-scheme: dark) {
@@ -38,9 +36,6 @@
         --accent-soft: #1e243d;
         --dominant: #34d399;
         --dominant-soft: #0f2a22;
-        --strong: #60a5fa;
-        --strong-soft: #12233d;
-        --info: #94a3b8;
         --info-soft: #1a2436;
         --danger: #f87171;
         --danger-soft: #2a1414;
@@ -58,77 +53,34 @@
       min-height: 100vh;
     }
 
-    .wrap {
-      max-width: 1080px;
-      margin: 0 auto;
-      padding: 32px 20px 64px;
-    }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 32px 20px 64px; }
 
-    header h1 {
-      margin: 0 0 4px;
-      font-size: 26px;
-      letter-spacing: -.02em;
-    }
-
-    header p {
-      margin: 0 0 20px;
-      color: var(--muted);
-      max-width: 72ch;
-    }
+    header h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: -.02em; }
+    header p { margin: 0 0 20px; color: var(--muted); max-width: 78ch; }
 
     code.inline {
       background: var(--info-soft);
       padding: 1px 6px;
       border-radius: 5px;
       font-size: .88em;
+      font-family: var(--mono);
     }
 
-    /* --- tabs --- */
-    .tabs {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      margin-bottom: 22px;
-      border-bottom: 1px solid var(--line);
-      padding-bottom: 10px;
-    }
-
-    .tabs button {
-      padding: 8px 14px;
-      border: 1px solid transparent;
-      border-radius: 9px;
-      background: transparent;
-      color: var(--muted);
+    .presets { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+    .presets button {
+      padding: 7px 12px;
+      border: 1px solid var(--ring);
+      border-radius: 999px;
+      background: var(--card);
+      color: var(--text);
       font: inherit;
-      font-weight: 600;
+      font-size: 13px;
       cursor: pointer;
     }
+    .presets button:hover { border-color: var(--accent); color: var(--accent); }
 
-    .tabs button[aria-selected="true"] {
-      background: var(--accent-soft);
-      color: var(--accent);
-    }
-
-    .panel { display: none; }
-    .panel.active { display: block; }
-
-    .panel > .intro {
-      color: var(--muted);
-      max-width: 72ch;
-      margin: 0 0 20px;
-      font-size: 14px;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-      align-items: start;
-    }
-
-    .grid.three { grid-template-columns: 1fr 1fr 1fr; }
-
-    @media (max-width: 860px) { .grid, .grid.three { grid-template-columns: 1fr; } }
+    .grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 20px; align-items: start; }
+    @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
 
     .card {
       background: var(--card);
@@ -139,168 +91,96 @@
     }
 
     .card h2 {
-      margin: 0 0 16px;
+      margin: 0 0 14px;
       font-size: 13px;
       text-transform: uppercase;
       letter-spacing: .08em;
       color: var(--muted);
     }
 
-    .card h3 {
-      margin: 18px 0 10px;
-      font-size: 11.5px;
-      text-transform: uppercase;
-      letter-spacing: .07em;
-      color: var(--muted);
-    }
-
+    .card h3 { margin: 18px 0 10px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
     .card h3:first-child { margin-top: 0; }
 
-    .field { margin-bottom: 14px; }
-    .field:last-child { margin-bottom: 0; }
-
-    label {
-      display: block;
-      font-size: 13px;
-      color: var(--muted);
-      margin-bottom: 6px;
-    }
-
-    select, input[type="number"], input[type="text"] {
+    textarea#csv {
       width: 100%;
-      padding: 9px 11px;
+      min-height: 220px;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      padding: 12px;
       border: 1px solid var(--ring);
-      border-radius: 9px;
+      border-radius: 10px;
       background: var(--bg);
       color: var(--text);
-      font: inherit;
+      resize: vertical;
+      white-space: pre;
     }
 
-    .segmented {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-    }
+    .field { margin-bottom: 12px; }
+    .field:last-child { margin-bottom: 0; }
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
 
-    .segmented button {
-      flex: 1 1 auto;
+    select, input[type="text"], input[type="number"], input[type="datetime-local"] {
+      width: 100%;
       padding: 8px 10px;
       border: 1px solid var(--ring);
       border-radius: 9px;
       background: var(--bg);
       color: var(--text);
       font: inherit;
-      cursor: pointer;
-      transition: .12s;
     }
 
-    .segmented button[aria-pressed="true"] {
-      border-color: var(--accent);
-      background: var(--accent-soft);
-      color: var(--accent);
-      font-weight: 600;
-    }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
 
-    .segmented button:disabled { opacity: .4; cursor: not-allowed; }
-
-    .check-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 8px;
-      font-size: 13.5px;
-    }
-
-    .check-row:last-child { margin-bottom: 0; }
-    .check-row input { width: auto; }
-    .check-row .desc { color: var(--muted); font-size: 12px; }
-
-    .two-col {
+    .lines { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 6px; }
+    .line-row {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
+      grid-template-columns: 1.4fr .7fr .9fr .9fr .5fr auto;
+      gap: 8px;
+      padding: 8px 10px;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
     }
+    .line-row:last-child { border-bottom: none; }
+    .line-row input, .line-row select { padding: 6px 8px; font-size: 13px; }
+    .line-row button {
+      border: none; background: var(--danger-soft); color: var(--danger);
+      border-radius: 7px; padding: 6px 8px; cursor: pointer; font-weight: 600;
+    }
+
+    #add-line {
+      margin-top: 8px;
+      padding: 8px 12px;
+      border: 1px dashed var(--ring);
+      border-radius: 9px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font: inherit;
+      width: 100%;
+    }
+    #add-line:hover { color: var(--accent); border-color: var(--accent); }
 
     .row {
       display: flex;
       justify-content: space-between;
       align-items: baseline;
-      padding: 7px 0;
+      padding: 6px 0;
       border-bottom: 1px dashed var(--line);
       gap: 12px;
+      font-size: 13.5px;
     }
-
     .row:last-child { border-bottom: 0; }
     .row .k { color: var(--muted); }
-    .row .k .sub { display: block; font-size: 11.5px; color: var(--muted); opacity: .8; }
     .row .v { font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .row.muted .v, .row.muted .k { color: var(--muted); text-decoration: line-through; }
+    .row.total .k { font-weight: 700; color: var(--text); }
+    .row.total .v { font-size: 18px; font-weight: 700; }
+    .row.group-head .k { font-weight: 700; color: var(--text); text-transform: uppercase; font-size: 11px; letter-spacing: .06em; }
 
-    .total .k { font-weight: 600; color: var(--text); }
-    .total .v { font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
-
-    .rate {
-      margin-top: 10px;
-      font-size: 12.5px;
-      color: var(--muted);
-    }
-
-    .insights { margin-top: 28px; }
-    .insights > h2 {
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      color: var(--muted);
-      margin: 0 0 12px;
-    }
-
-    .insight {
-      border: 1px solid var(--line);
-      border-left-width: 4px;
-      border-radius: 11px;
-      padding: 14px 16px;
-      margin-bottom: 12px;
-      background: var(--card);
-    }
-
-    .insight.dominant { border-left-color: var(--dominant); }
-    .insight.strong { border-left-color: var(--strong); }
-    .insight.info { border-left-color: var(--info); }
-
-    .insight .head {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 4px;
-      flex-wrap: wrap;
-    }
-
-    .badge {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: .05em;
-      font-weight: 700;
-      padding: 2px 8px;
-      border-radius: 999px;
-    }
-
-    .badge.dominant { background: var(--dominant-soft); color: var(--dominant); }
-    .badge.strong { background: var(--strong-soft); color: var(--strong); }
-    .badge.info { background: var(--info-soft); color: var(--info); }
-    .badge.kind { background: var(--info-soft); color: var(--muted); font-weight: 600; }
-
-    .insight .title { font-weight: 600; }
-    .insight .assumes {
-      margin-top: 6px;
-      font-size: 12.5px;
-      color: var(--muted);
-    }
-
-    .empty {
-      color: var(--muted);
-      font-size: 14px;
-      padding: 8px 0;
-    }
+    .line-quote { border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; margin-bottom: 12px; }
+    .line-quote .title { font-weight: 600; margin-bottom: 6px; font-size: 13.5px; }
+    .line-quote .id { font-family: var(--mono); font-size: 11px; color: var(--muted); }
 
     .error-box {
       border: 1px solid var(--danger);
@@ -309,94 +189,31 @@
       border-radius: 11px;
       padding: 12px 14px;
       font-size: 13.5px;
+      white-space: pre-wrap;
     }
-
     .error-box .code {
       display: inline-block;
-      font-family: ui-monospace, monospace;
-      font-size: 12px;
+      font-family: var(--mono);
+      font-size: 11.5px;
       background: rgba(0,0,0,.06);
       padding: 1px 6px;
       border-radius: 5px;
-      margin-bottom: 4px;
+      margin: 3px 6px 3px 0;
     }
-
-    details.debug {
-      margin-top: 18px;
-      border: 1px solid var(--line);
+    .ok-box {
+      border: 1px solid var(--dominant);
+      background: var(--dominant-soft);
+      color: var(--dominant);
       border-radius: 11px;
-      padding: 4px 14px;
-    }
-
-    details.debug summary {
-      cursor: pointer;
-      padding: 10px 0;
-      font-size: 12.5px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: .06em;
-      font-weight: 600;
-    }
-
-    details.debug .row { font-size: 13px; }
-    details.debug .row .k { max-width: 60%; }
-
-    .errors-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-      gap: 10px;
-      margin-bottom: 22px;
-    }
-
-    .errors-grid button {
-      padding: 10px 12px;
-      border: 1px solid var(--ring);
-      border-radius: 9px;
-      background: var(--card);
-      color: var(--text);
-      font: inherit;
-      font-weight: 600;
+      padding: 10px 14px;
       font-size: 13px;
-      cursor: pointer;
-      text-align: left;
+      margin-bottom: 14px;
     }
+    .ok-box .hash { font-family: var(--mono); font-size: 11px; opacity: .8; }
 
-    .errors-grid button:hover { border-color: var(--accent); }
+    .empty { color: var(--muted); font-size: 14px; padding: 8px 0; }
 
-    .error-result {
-      border: 1px solid var(--line);
-      border-radius: 11px;
-      padding: 14px 16px;
-      margin-bottom: 12px;
-      background: var(--card);
-    }
-
-    .error-result.ok { border-left: 4px solid var(--dominant); }
-    .error-result.thrown { border-left: 4px solid var(--danger); }
-
-    .error-result .name {
-      font-weight: 700;
-      font-size: 14px;
-    }
-
-    .error-result .code {
-      font-family: ui-monospace, monospace;
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    .error-result .msg {
-      margin-top: 6px;
-      font-size: 13.5px;
-    }
-
-    footer {
-      margin-top: 40px;
-      color: var(--muted);
-      font-size: 13px;
-      text-align: center;
-    }
-
+    footer { margin-top: 40px; color: var(--muted); font-size: 13px; text-align: center; }
     footer a { color: var(--accent); }
   </style>
 </head>
@@ -406,351 +223,51 @@
     <header>
       <h1>Price Quotes</h1>
       <p>
-        A generic quote engine — this playground is a live tour of the entire library, not
-        just one preset. Change any input on any tab and the quote, tax lines, discounts,
-        savings insights and rule-matching explanation all recompute in your browser.
+        A CSV-catalog-driven quote engine. Edit the catalog on the left — every column is
+        optional except <code class="inline">product_sku</code> and
+        <code class="inline">price_amount</code> — then price a cart against it on the right.
+        A catalog with a problem never produces a quote: it fails to load, with every issue
+        located by row and column, all at once.
       </p>
     </header>
 
-    <div class="tabs" role="tablist">
-      <button role="tab" data-tab="core" aria-selected="true">Core engine</button>
-      <button role="tab" data-tab="software" aria-selected="false">Software preset</button>
-      <button role="tab" data-tab="domains" aria-selected="false">Domains preset</button>
-      <button role="tab" data-tab="errors" aria-selected="false">Error catalog</button>
+    <div class="presets" id="presets"></div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Catalog (CSV)</h2>
+        <textarea id="csv" spellcheck="false"></textarea>
+        <div id="catalog-status"></div>
+      </div>
+
+      <div class="card">
+        <h2>Cart</h2>
+        <div class="two-col">
+          <div class="field">
+            <label for="currency">Currency</label>
+            <input id="currency" type="text" value="USD" />
+          </div>
+          <div class="field">
+            <label for="asof">asOf (blank = now)</label>
+            <input id="asof" type="datetime-local" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="context">Context (k=v;k2=v2 — read by constraint cells)</label>
+          <input id="context" type="text" placeholder="customer_tier=pro" />
+        </div>
+
+        <h3>Lines</h3>
+        <div class="lines" id="lines"></div>
+        <button id="add-line" type="button">+ add line</button>
+
+        <h3>Quote</h3>
+        <div id="quote-output"></div>
+      </div>
     </div>
-
-    <!-- ============================================================ CORE ==== -->
-    <section class="panel active" id="panel-core">
-      <p class="intro">
-        A hand-built catalog (no preset) used directly through the raw <code class="inline">Quotes</code>
-        engine — every knob in <code class="inline">QuotesConfig</code> is wired to a control below:
-        rule precedence (sku &gt; group, volume &amp; term tiers, per-unit vs per-line), variant
-        eligibility, markup, stacked/maxed discounts with time windows, static vs resolver-based
-        taxes (inclusive, compound, basis), rounding policy, a minimum chargeable total, and every
-        <code class="inline">explore</code> option.
-      </p>
-
-      <div class="grid three">
-        <div class="card">
-          <h2>Request</h2>
-          <div class="field">
-            <label for="c-sku">Product (sku)</label>
-            <select id="c-sku">
-              <option value="seats">seats — per-seat licence</option>
-              <option value="support">support — flat add-on</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="c-variant">Variant</label>
-            <select id="c-variant"></select>
-          </div>
-          <div class="field">
-            <label>Billing interval</label>
-            <div class="segmented" id="c-interval"></div>
-          </div>
-          <div class="two-col">
-            <div class="field">
-              <label for="c-quantity">Quantity</label>
-              <input id="c-quantity" type="number" min="1" value="1" />
-            </div>
-            <div class="field">
-              <label for="c-term">Term</label>
-              <input id="c-term" type="number" min="1" value="1" />
-            </div>
-          </div>
-          <div class="field">
-            <label for="c-currency">Currency</label>
-            <select id="c-currency">
-              <option value="USD" selected>USD ($, base)</option>
-              <option value="EUR">EUR (€, FX rate)</option>
-              <option value="NGN">NGN (₦, direct-priced on some rules)</option>
-            </select>
-          </div>
-
-          <h3>Discounts</h3>
-          <div class="check-row">
-            <input type="checkbox" id="c-disc-save10" />
-            <label for="c-disc-save10" style="margin:0">SAVE10 <span class="desc">10% off, sku-restricted to seats</span></label>
-          </div>
-          <div class="check-row">
-            <input type="checkbox" id="c-disc-edu20" />
-            <label for="c-disc-edu20" style="margin:0">EDU20 <span class="desc">20% off, variant=academic + eligibility</span></label>
-          </div>
-          <div class="check-row">
-            <input type="checkbox" id="c-disc-launch25" />
-            <label for="c-disc-launch25" style="margin:0">LAUNCH25 <span class="desc">25% off, but its date window already expired</span></label>
-          </div>
-          <div class="check-row">
-            <input type="checkbox" id="c-disc-bundle5" />
-            <label for="c-disc-bundle5" style="margin:0">BUNDLE5 <span class="desc">5% off, unrestricted — combine with SAVE10 to see stack vs. max diverge</span></label>
-          </div>
-          <div class="field" style="margin-top:10px">
-            <label for="c-disc-policy">Discount policy (when 2+ apply)</label>
-            <select id="c-disc-policy">
-              <option value="max" selected>max — best single discount wins</option>
-              <option value="stack">stack — all applicable discounts add up</option>
-            </select>
-          </div>
-
-          <h3>Caller context</h3>
-          <div class="check-row">
-            <input type="checkbox" id="c-edu" />
-            <label for="c-edu" style="margin:0">context.edu — required for the academic variant</label>
-          </div>
-          <div class="field">
-            <label for="c-country">context.country — read by the tax resolver</label>
-            <select id="c-country">
-              <option value="US">US</option>
-              <option value="NG">NG</option>
-              <option value="EU">EU</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="card">
-          <h2>Engine config</h2>
-          <div class="field">
-            <label for="c-markup">Markup</label>
-            <select id="c-markup">
-              <option value="none" selected>None</option>
-              <option value="pct">+10% (percentage)</option>
-              <option value="fixed">+$2.00 flat (fixed)</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="c-taxmode">Taxes</label>
-            <select id="c-taxmode">
-              <option value="static" selected>Static rule list</option>
-              <option value="resolver">Resolver keyed on context.country</option>
-            </select>
-          </div>
-          <p class="empty" id="c-tax-note" style="padding:0"></p>
-          <div class="field">
-            <label for="c-rounding">Rounding policy</label>
-            <select id="c-rounding">
-              <option value="per-step" selected>per-step — quantize after every stage</option>
-              <option value="final">final — quantize once, at the end</option>
-            </select>
-          </div>
-          <div class="check-row">
-            <input type="checkbox" id="c-mincharge-on" />
-            <label for="c-mincharge-on" style="margin:0">Enforce minChargeableTotal (USD)</label>
-          </div>
-          <div class="field">
-            <input id="c-mincharge-val" type="number" min="0" step="1" value="50" />
-          </div>
-
-          <h3>Explore (savings insights)</h3>
-          <div class="check-row">
-            <input type="checkbox" id="c-explore-on" checked />
-            <label for="c-explore-on" style="margin:0">Enabled</label>
-          </div>
-          <div class="check-row">
-            <input type="checkbox" id="c-exp-intervals" checked />
-            <label for="c-exp-intervals" style="margin:0">Compare intervals</label>
-          </div>
-          <div class="check-row">
-            <input type="checkbox" id="c-exp-terms" checked />
-            <label for="c-exp-terms" style="margin:0">Compare terms</label>
-          </div>
-          <div class="check-row">
-            <input type="checkbox" id="c-exp-quantities" checked />
-            <label for="c-exp-quantities" style="margin:0">Compare quantities</label>
-          </div>
-          <div class="check-row">
-            <input type="checkbox" id="c-exp-variants" checked />
-            <label for="c-exp-variants" style="margin:0">Compare substitutable variants</label>
-          </div>
-          <div class="check-row">
-            <input type="checkbox" id="c-exp-discounts" />
-            <label for="c-exp-discounts" style="margin:0">Reveal unrequested discount codes</label>
-          </div>
-          <div class="two-col" style="margin-top:10px">
-            <div class="field">
-              <label for="c-exp-horizon">Horizon (days, blank = auto)</label>
-              <input id="c-exp-horizon" type="number" min="1" placeholder="auto" />
-            </div>
-            <div class="field">
-              <label for="c-exp-max">Max candidates</label>
-              <input id="c-exp-max" type="number" min="1" value="24" />
-            </div>
-          </div>
-          <div class="field">
-            <label for="c-exp-minpct">Min savings % to surface</label>
-            <input id="c-exp-minpct" type="number" min="0" max="100" step="0.5" value="1" />
-          </div>
-        </div>
-
-        <div class="card">
-          <h2>Quote</h2>
-          <div id="c-breakdown"></div>
-          <div class="rate" id="c-rate"></div>
-          <details class="debug">
-            <summary>Explain (matched rule, rate source, steps)</summary>
-            <div id="c-explain"></div>
-          </details>
-        </div>
-      </div>
-
-      <div class="insights">
-        <h2>Smart insights</h2>
-        <div id="c-insights"></div>
-      </div>
-    </section>
-
-    <!-- ========================================================= SOFTWARE ==== -->
-    <section class="panel" id="panel-software">
-      <p class="intro">
-        The <code class="inline">softwareQuotes</code> preset: seat-based SaaS pricing with
-        volume tiers, multi-year term tiers, multi-currency support and VAT, built from a plain
-        list of plan specs instead of raw catalog rules.
-      </p>
-      <div class="grid">
-        <div class="card">
-          <h2>Your order</h2>
-          <div class="field">
-            <label for="s-plan">Plan</label>
-            <select id="s-plan">
-              <option value="starter">Starter</option>
-              <option value="pro" selected>Pro</option>
-              <option value="enterprise">Enterprise</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Billing interval</label>
-            <div class="segmented" id="s-interval">
-              <button data-val="month" aria-pressed="true">Monthly</button>
-              <button data-val="year" aria-pressed="false">Yearly</button>
-            </div>
-          </div>
-          <div class="field">
-            <label for="s-quantity">Seats</label>
-            <input id="s-quantity" type="number" min="1" value="1" />
-          </div>
-          <div class="field">
-            <label for="s-term">Term (intervals up front)</label>
-            <input id="s-term" type="number" min="1" value="1" />
-          </div>
-          <div class="field">
-            <label for="s-currency">Currency</label>
-            <select id="s-currency">
-              <option value="USD" selected>USD ($)</option>
-              <option value="EUR">EUR (€)</option>
-              <option value="NGN">NGN (₦)</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="card">
-          <h2>Quote</h2>
-          <div id="s-breakdown"></div>
-          <div class="rate" id="s-rate"></div>
-        </div>
-      </div>
-
-      <div class="insights">
-        <h2>Smart insights</h2>
-        <div id="s-insights"></div>
-      </div>
-    </section>
-
-    <!-- ========================================================== DOMAINS ==== -->
-    <section class="panel" id="panel-domains">
-      <p class="intro">
-        The <code class="inline">domainsPreset</code>: domain lifecycle pricing (create, renew,
-        transfer, restore — deliberately never suggested as substitutes for each other) with
-        per-TLD provider metadata. This demo passes pre-loaded synthetic data so it needs no
-        network access.
-      </p>
-      <div class="grid">
-        <div class="card">
-          <h2>Your order</h2>
-          <div class="field">
-            <label for="d-tld">TLD</label>
-            <select id="d-tld">
-              <option value="com">.com</option>
-              <option value="net">.net</option>
-              <option value="xyz">.xyz</option>
-              <option value="io">.io</option>
-              <option value="ng">.ng</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Lifecycle action</label>
-            <div class="segmented" id="d-variant">
-              <button data-val="create" aria-pressed="true">Create</button>
-              <button data-val="renew" aria-pressed="false">Renew</button>
-              <button data-val="transfer" aria-pressed="false">Transfer</button>
-              <button data-val="restore" aria-pressed="false">Restore</button>
-            </div>
-          </div>
-          <div class="two-col">
-            <div class="field">
-              <label for="d-quantity">Domains</label>
-              <input id="d-quantity" type="number" min="1" value="1" />
-            </div>
-            <div class="field">
-              <label for="d-term">Years</label>
-              <input id="d-term" type="number" min="1" value="1" />
-            </div>
-          </div>
-          <div class="field">
-            <label for="d-currency">Currency</label>
-            <select id="d-currency">
-              <option value="USD" selected>USD</option>
-              <option value="NGN">NGN</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="d-vat">VAT rate</label>
-            <select id="d-vat">
-              <option value="0.075" selected>7.5% (default)</option>
-              <option value="0">0% (disabled)</option>
-              <option value="0.2">20%</option>
-            </select>
-          </div>
-          <p class="empty" style="padding:0">
-            .net/.xyz/.io/.ng have no dedicated renew/transfer/restore price on file, so those
-            actions fall back to the create price — try switching TLD and action to see it.
-          </p>
-        </div>
-
-        <div class="card">
-          <h2>Quote</h2>
-          <div id="d-breakdown"></div>
-          <div class="rate" id="d-provider"></div>
-        </div>
-      </div>
-
-      <div class="insights">
-        <h2>Smart insights</h2>
-        <div id="d-insights"></div>
-      </div>
-    </section>
-
-    <!-- =========================================================== ERRORS ==== -->
-    <section class="panel" id="panel-errors">
-      <p class="intro">
-        Every quote error is a <code class="inline">QuoteError</code> subclass with a stable
-        <code class="inline">code</code>, so callers can branch on <code class="inline">err.code</code>
-        instead of matching message strings. Click a button to deliberately trigger that error
-        against the core engine's catalog from the first tab.
-      </p>
-      <div class="errors-grid">
-        <button data-err="unknown-sku">UnknownSkuError</button>
-        <button data-err="unknown-variant">UnknownVariantError</button>
-        <button data-err="not-eligible">VariantNotEligibleError</button>
-        <button data-err="bad-currency">UnsupportedCurrencyError</button>
-        <button data-err="no-price">NoPriceError</button>
-        <button data-err="invalid-request">InvalidRequestError</button>
-        <button data-err="below-minimum">BelowMinimumChargeError</button>
-      </div>
-      <div id="e-results"></div>
-    </section>
 
     <footer>
       Powered by <code class="inline">price-quotes</code> running entirely in your browser.
-      <a href="./config-driven.html">Config-driven demo →</a> ·
       <a href="https://github.com/namewiz/price-quotes">Source &amp; docs →</a>
     </footer>
   </div>
@@ -764,483 +281,198 @@
         '<div class="empty">Could not load the engine bundle (docs/price-quotes.js). Run <code class="inline">npm run build</code>.</div>';
       throw err;
     }
-    const { Quotes, softwareQuotes, domainsPreset, formatMoney, formatInsight } = mod;
-
+    const { loadCatalog, Quotes } = mod;
     const el = (id) => document.getElementById(id);
 
-    // ---------------------------------------------------------------- tabs ---
-    document.querySelectorAll('.tabs button').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b === btn)));
-        document.querySelectorAll('.panel').forEach((p) => p.classList.remove('active'));
-        el(`panel-${btn.dataset.tab}`).classList.add('active');
-      });
+    const PRESETS = {
+      'Minimal': "product_sku,price_amount\n.ng,10.00",
+      'Variant override': "product_sku,product_variant,price_amount\n.ng,,10.00\n.ng,transfer,8.00",
+      'Quantity tiers': "product_sku,min_quantity,max_quantity,price_amount\n.ng,1,1,16.00\n.ng,2,,15.00",
+      'Charm + discount + tax': [
+        "product_sku,price_amount,charm,charm_position,adjustment_kind,adjustment_type,adjustment_value,adjustment_stackable,tax_rate,tax_behavior",
+        ".ng,12.34,to9,1,discount,rate,0.10,true,0.075,exclusive",
+      ].join("\n"),
+      'Multi-currency': "product_sku,currency,price_amount,charm,charm_position\n.ng,USD,12.34,to9,1\n.ng,JPY,15943,to9,2",
+      'Context-eligible discount': [
+        "product_sku,price_amount,adjustment_kind,adjustment_type,adjustment_value,adjustment_constraints",
+        ".ng,10.00,discount,rate,0.20,customer_tier=!=free",
+      ].join("\n"),
+      '⚠ The missing zero (ambiguous)': "product_sku,price_amount\n.ng,50.00\n.ng,5.00",
+      '⚠ Crossed axes (ambiguous)': "product_sku,product_variant,country_code,price_amount\n.ng,transfer,,8.00\n.ng,,NG,9.00",
+    };
+
+    el('presets').innerHTML = Object.keys(PRESETS).map((name) =>
+      `<button type="button" data-preset="${name}">${name}</button>`
+    ).join('');
+    el('presets').addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      el('csv').value = PRESETS[btn.dataset.preset];
+      recompute();
     });
 
-    function line (k, money, meta, cls = '', sub) {
-      const subHtml = sub ? `<span class="sub">${sub}</span>` : '';
-      return `<div class="row ${cls}"><span class="k">${k}${subHtml}</span><span class="v">${formatMoney(meta, money)}</span></div>`;
+    el('csv').value = PRESETS['Charm + discount + tax'];
+
+    let lineIdSeq = 0;
+    const lines = [
+      { id: lineIdSeq++, sku: '.ng', quantity: 3, variant: '', country: '', frequency: 'one-time' },
+    ];
+
+    function renderLines() {
+      el('lines').innerHTML = lines.map((l) => `
+        <div class="line-row" data-id="${l.id}">
+          <input type="text" class="f-sku" placeholder="sku" value="${l.sku}" />
+          <input type="number" class="f-qty" min="1" value="${l.quantity}" />
+          <input type="text" class="f-variant" placeholder="variant" value="${l.variant}" />
+          <input type="text" class="f-country" placeholder="country" value="${l.country}" />
+          <select class="f-freq">
+            <option value="one-time" ${l.frequency === 'one-time' ? 'selected' : ''}>once</option>
+            <option value="month" ${l.frequency === 'month' ? 'selected' : ''}>/month</option>
+            <option value="year" ${l.frequency === 'year' ? 'selected' : ''}>/year</option>
+          </select>
+          <button type="button" class="remove">×</button>
+        </div>
+      `).join('');
+    }
+    renderLines();
+
+    el('lines').addEventListener('input', (e) => {
+      const row = e.target.closest('.line-row');
+      if (!row) return;
+      const id = Number(row.dataset.id);
+      const l = lines.find((x) => x.id === id);
+      if (!l) return;
+      l.sku = row.querySelector('.f-sku').value;
+      l.quantity = Math.max(1, Math.round(Number(row.querySelector('.f-qty').value) || 1));
+      l.variant = row.querySelector('.f-variant').value;
+      l.country = row.querySelector('.f-country').value;
+      recompute();
+    });
+    el('lines').addEventListener('change', (e) => {
+      const row = e.target.closest('.line-row');
+      if (!row) return;
+      const id = Number(row.dataset.id);
+      const l = lines.find((x) => x.id === id);
+      if (!l) return;
+      l.frequency = row.querySelector('.f-freq').value;
+      recompute();
+    });
+    el('lines').addEventListener('click', (e) => {
+      if (!e.target.classList.contains('remove')) return;
+      const row = e.target.closest('.line-row');
+      const id = Number(row.dataset.id);
+      const idx = lines.findIndex((x) => x.id === id);
+      if (idx >= 0) lines.splice(idx, 1);
+      renderLines();
+      recompute();
+    });
+    el('add-line').addEventListener('click', () => {
+      lines.push({ id: lineIdSeq++, sku: '', quantity: 1, variant: '', country: '', frequency: 'one-time' });
+      renderLines();
+      recompute();
+    });
+
+    for (const id of ['csv', 'currency', 'asof', 'context']) {
+      el(id).addEventListener('input', recompute);
     }
 
-    function textRow (k, v) {
-      return `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
-    }
-
-    function formatInsightTitle (i) {
-      const full = formatInsight(i);
-      const cut = full.indexOf(' (assumes ');
-      return cut === -1 ? full : full.slice(0, cut);
-    }
-
-    function renderInsights (box, insights, emptyMsg) {
-      if (insights.length === 0) {
-        box.innerHTML = `<div class="empty">${emptyMsg}</div>`;
-        return;
+    function formatMoney(minor, currency) {
+      try {
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(minor / 100);
+      } catch {
+        return `${(minor / 100).toFixed(2)} ${currency}`;
       }
-      box.innerHTML = insights.map((i) => {
-        const assumes = i.assumes.length ? `<div class="assumes">Assumes ${i.assumes.join('; ')}.</div>` : '';
-        return `<div class="insight ${i.strength}">
-          <div class="head">
-            <span class="badge ${i.strength}">${i.strength}</span>
-            <span class="badge kind">${i.kind}</span>
-            <span class="title">${formatInsightTitle(i)}</span>
-          </div>
-          ${assumes}
-        </div>`;
-      }).join('');
     }
 
-    function renderError (box, err) {
-      box.innerHTML = `<div class="error-box"><span class="code">${err.code ?? err.name}</span><br/>${err.message}</div>`;
+    function parseContext(text) {
+      const ctx = {};
+      for (const part of text.split(';')) {
+        const [k, v] = part.split('=');
+        if (k && v !== undefined) ctx[k.trim()] = v.trim();
+      }
+      return ctx;
     }
 
-    // ============================================================= CORE ======
-    // A hand-rolled catalog exercising sku vs group precedence, per-unit vs
-    // per-line pricing, volume/term tiers, variant eligibility, and direct vs
-    // FX currency pricing — everything a preset would otherwise hide.
-    const CORE_CURRENCIES = [
-      { code: 'USD', symbol: '$', exponent: 2 },
-      { code: 'EUR', symbol: '€', exponent: 2 },
-      { code: 'NGN', symbol: '₦', exponent: 2, roundingIncrement: 100 },
-    ];
-    const CORE_RATES = { EUR: 0.92, NGN: 1600 };
-
-    const CORE_CATALOG = {
-      products: [
-        {
-          sku: 'seats',
-          name: 'Seats',
-          groups: ['software'],
-          variants: [
-            { id: 'standard', name: 'Standard', substitutionGroup: 'seats-tier' },
-            {
-              id: 'academic',
-              name: 'Academic',
-              substitutionGroup: 'seats-tier',
-              requires: (ctx) => ctx.context?.edu === true,
-            },
-          ],
-          intervals: [{ unit: 'month' }, { unit: 'year' }],
-        },
-        {
-          sku: 'support',
-          name: 'Priority support',
-          groups: ['software', 'addon'],
-          variants: [{ id: 'standard', name: 'Standard' }],
-          intervals: [{ unit: 'month' }, { unit: 'year' }, { unit: 'once' }],
-        },
-      ],
-      rules: [
-        // seats: list price, priced directly in NGN (not FX-derived) so its rate
-        // source differs from EUR's.
-        { sku: 'seats', interval: 'month', amount: { USD: 20, NGN: 30000 }, label: 'seats:month:list' },
-        { sku: 'seats', interval: 'month', minQuantity: 5, amount: { USD: 16 }, label: 'seats:month:5+' },
-        { sku: 'seats', interval: 'month', minQuantity: 20, amount: { USD: 12 }, label: 'seats:month:20+' },
-        { sku: 'seats', interval: 'year', amount: { USD: 200, NGN: 300000 }, label: 'seats:year:list' },
-        { sku: 'seats', interval: 'year', minQuantity: 5, amount: { USD: 160 }, label: 'seats:year:5+' },
-        { sku: 'seats', interval: 'year', minTerm: 2, amount: { USD: 180 }, label: 'seats:year:2yr+' },
-        { sku: 'seats', variant: 'academic', interval: 'month', amount: { USD: 10, NGN: 14000 }, label: 'seats:academic:month' },
-        { sku: 'seats', variant: 'academic', interval: 'year', amount: { USD: 100, NGN: 140000 }, label: 'seats:academic:year' },
-
-        // support: sku-specific rules for month/year, both flat per-line (quantity
-        // does not multiply it). No sku-specific 'once' rule exists — that falls
-        // through to the *group* rule below, demonstrating sku > group precedence.
-        { sku: 'support', interval: 'month', amount: { USD: 49 }, per: 'line', label: 'support:month:flat' },
-        { sku: 'support', interval: 'year', amount: { USD: 490 }, per: 'line', label: 'support:year:flat' },
-        { group: 'addon', interval: 'once', amount: { USD: 999 }, per: 'line', label: 'addon:once:flat (group fallback)' },
-      ],
-      normalizeSku: (raw) => raw.trim().toLowerCase(),
-    };
-
-    const CORE_DISCOUNTS = {
-      SAVE10: { rate: 0.10, skus: ['seats'] },
-      EDU20: { rate: 0.20, variants: ['academic'], isEligible: (ctx) => ctx.context?.edu === true },
-      LAUNCH25: { rate: 0.25, groups: ['software'], startAt: '2020-01-01', endAt: '2020-02-01' },
-      BUNDLE5: { rate: 0.05 },
-    };
-
-    const CORE_STATIC_TAXES = [
-      { id: 'fed', name: 'Federal tax 5%', rate: 0.05, basis: 'subtotal' },
-      { id: 'state', name: 'State tax 3% (compounds on federal)', rate: 0.03, compound: true, basis: 'subtotal' },
-      { id: 'vat', name: 'Inclusive VAT 20% (basis = pre-discount)', rate: 0.20, inclusive: true, basis: 'base' },
-    ];
-
-    function coreTaxResolver (ctx) {
-      const country = ctx.context?.country ?? 'US';
-      if (country === 'NG') return [{ id: 'vat-ng', name: 'Nigeria VAT 7.5% (inclusive)', rate: 0.075, inclusive: true }];
-      if (country === 'EU') return [{ id: 'vat-eu', name: 'EU VAT 21% (inclusive)', rate: 0.21, inclusive: true }];
-      return [{ id: 'sales-us', name: 'US sales tax 8.25%', rate: 0.0825 }];
-    }
-
-    const SEATS_VARIANTS = { standard: 'Standard', academic: 'Academic' };
-    const SUPPORT_VARIANTS = { standard: 'Standard' };
-    const SEATS_INTERVALS = ['month', 'year'];
-    const SUPPORT_INTERVALS = ['month', 'year', 'once'];
-    const INTERVAL_LABEL = { month: 'Monthly', year: 'Yearly', once: 'One-time' };
-
-    const cs = {
-      sku: 'seats', variant: 'standard', interval: 'month', quantity: 1, term: 1, currency: 'USD',
-    };
-
-    function buildCoreConfig (opts) {
-      const markup =
-        opts.markup === 'pct' ? { type: 'percentage', value: 0.10 } :
-        opts.markup === 'fixed' ? { type: 'fixed', value: 2 } : undefined;
-      return {
-        catalog: CORE_CATALOG,
-        currencies: CORE_CURRENCIES,
-        rates: CORE_RATES,
-        baseCurrency: 'USD',
-        taxes: opts.taxMode === 'resolver' ? coreTaxResolver : CORE_STATIC_TAXES,
-        markup,
-        discounts: CORE_DISCOUNTS,
-        roundingPolicy: opts.rounding,
-        minChargeableTotal: opts.minChargeOn ? { USD: Number(opts.minChargeValue) || 0 } : undefined,
-      };
-    }
-
-    function populateSelect (select, map) {
-      select.innerHTML = Object.entries(map).map(([v, label]) => `<option value="${v}">${label}</option>`).join('');
-    }
-
-    function renderIntervalButtons (container, units, active) {
-      container.innerHTML = units.map((u) =>
-        `<button data-val="${u}" aria-pressed="${String(u === active)}">${INTERVAL_LABEL[u]}</button>`
+    function renderCatalogError(err) {
+      const issues = err.issues ?? [{ code: err.code ?? 'ERR', message: err.message }];
+      const html = issues.map((i) =>
+        `<div><span class="code">${i.code}</span>${i.row ? `row ${i.row}${i.column ? `, ${i.column}` : ''}: ` : ''}${i.message}${i.suggestion ? ` — <em>${i.suggestion}</em>` : ''}</div>`
       ).join('');
+      el('catalog-status').innerHTML = `<div class="error-box"><strong>${issues.length} catalog issue(s)</strong><br/>${html}</div>`;
     }
 
-    function syncCoreProductInputs () {
-      const isSeats = cs.sku === 'seats';
-      populateSelect(el('c-variant'), isSeats ? SEATS_VARIANTS : SUPPORT_VARIANTS);
-      if (!(cs.variant in (isSeats ? SEATS_VARIANTS : SUPPORT_VARIANTS))) cs.variant = 'standard';
-      el('c-variant').value = cs.variant;
+    function recompute() {
+      let config;
+      try {
+        config = loadCatalog(el('csv').value, {});
+        el('catalog-status').innerHTML =
+          `<div class="ok-box">Loaded ${config.products.length} product(s), ${config.prices.length} price(s).<br/>` +
+          `<span class="hash">hash ${config.hash.slice(0, 16)}…</span></div>`;
+      } catch (err) {
+        renderCatalogError(err);
+        el('quote-output').innerHTML = '<div class="empty">Fix the catalog to see a quote.</div>';
+        return;
+      }
 
-      const units = isSeats ? SEATS_INTERVALS : SUPPORT_INTERVALS;
-      if (!units.includes(cs.interval)) cs.interval = units[0];
-      renderIntervalButtons(el('c-interval'), units, cs.interval);
-
-      const termInput = el('c-term');
-      termInput.disabled = cs.interval === 'once';
-      if (cs.interval === 'once') { cs.term = 1; termInput.value = 1; }
-    }
-
-    el('c-sku').addEventListener('change', (e) => { cs.sku = e.target.value; syncCoreProductInputs(); renderCore(); });
-    el('c-variant').addEventListener('change', (e) => { cs.variant = e.target.value; renderCore(); });
-    el('c-interval').addEventListener('click', (e) => {
-      const btn = e.target.closest('button');
-      if (!btn) return;
-      cs.interval = btn.dataset.val;
-      syncCoreProductInputs();
-      renderCore();
-    });
-    el('c-quantity').addEventListener('input', (e) => { cs.quantity = Math.max(1, Math.round(+e.target.value || 1)); renderCore(); });
-    el('c-term').addEventListener('input', (e) => { cs.term = Math.max(1, Math.round(+e.target.value || 1)); renderCore(); });
-    el('c-currency').addEventListener('change', (e) => { cs.currency = e.target.value; renderCore(); });
-
-    ['c-disc-save10', 'c-disc-edu20', 'c-disc-launch25', 'c-disc-bundle5', 'c-disc-policy', 'c-edu', 'c-country',
-     'c-markup', 'c-taxmode', 'c-rounding', 'c-mincharge-on', 'c-mincharge-val',
-     'c-explore-on', 'c-exp-intervals', 'c-exp-terms', 'c-exp-quantities', 'c-exp-variants',
-     'c-exp-discounts', 'c-exp-horizon', 'c-exp-max', 'c-exp-minpct'
-    ].forEach((id) => el(id).addEventListener('input', renderCore));
-
-    function readCoreForm () {
-      const codes = [];
-      if (el('c-disc-save10').checked) codes.push('SAVE10');
-      if (el('c-disc-edu20').checked) codes.push('EDU20');
-      if (el('c-disc-launch25').checked) codes.push('LAUNCH25');
-      if (el('c-disc-bundle5').checked) codes.push('BUNDLE5');
-
-      const taxMode = el('c-taxmode').value;
-      el('c-tax-note').textContent = taxMode === 'resolver'
-        ? 'The resolver reads context.country (set on the left) to pick a tax scheme.'
-        : 'Federal + compounding state tax on the discounted subtotal, plus an inclusive VAT computed on the pre-discount base — switch currency/discounts to see basis and compounding diverge.';
-
-      return {
-        request: {
-          sku: cs.sku,
-          variant: cs.variant,
-          interval: cs.interval,
-          term: cs.term,
-          quantity: cs.quantity,
-          currency: cs.currency,
-          discountCodes: codes,
-          discountPolicy: el('c-disc-policy').value,
-          context: { edu: el('c-edu').checked, country: el('c-country').value },
-        },
-        config: {
-          markup: el('c-markup').value,
-          taxMode,
-          rounding: el('c-rounding').value,
-          minChargeOn: el('c-mincharge-on').checked,
-          minChargeValue: el('c-mincharge-val').value,
-        },
-        explore: el('c-explore-on').checked ? {
-          intervals: el('c-exp-intervals').checked,
-          terms: el('c-exp-terms').checked,
-          quantities: el('c-exp-quantities').checked,
-          variants: el('c-exp-variants').checked,
-          discounts: el('c-exp-discounts').checked,
-          horizonDays: el('c-exp-horizon').value ? Number(el('c-exp-horizon').value) : undefined,
-          maxCandidates: Number(el('c-exp-max').value) || 24,
-          minSavingsPercent: (Number(el('c-exp-minpct').value) || 0) / 100,
-        } : false,
+      const q = new Quotes(config);
+      const asOf = el('asof').value ? new Date(el('asof').value) : undefined;
+      const request = {
+        currency: el('currency').value.trim() || 'USD',
+        asOf,
+        context: parseContext(el('context').value),
+        lines: lines
+          .filter((l) => l.sku.trim())
+          .map((l) => ({
+            sku: l.sku.trim(),
+            quantity: l.quantity,
+            variant: l.variant.trim() || undefined,
+            country: l.country.trim() || undefined,
+            frequency: l.frequency === 'one-time' ? 'one-time' : 'recurring',
+            interval: l.frequency === 'one-time' ? undefined : l.frequency,
+          })),
       };
-    }
 
-    async function renderCore () {
-      const form = readCoreForm();
-      const engine = new Quotes(buildCoreConfig(form.config));
-
-      let quote;
-      try {
-        quote = await engine.quote(form.request, { explore: form.explore });
-      } catch (err) {
-        renderError(el('c-breakdown'), err);
-        el('c-rate').textContent = '';
-        el('c-explain').innerHTML = '';
-        el('c-insights').innerHTML = '';
+      if (request.lines.length === 0) {
+        el('quote-output').innerHTML = '<div class="empty">Add a line to see a quote.</div>';
         return;
       }
 
-      const meta = quote.currency;
-      let html = line('Unit price', quote.unitPrice, meta) +
-        line(`Subtotal (${cs.quantity} × ${cs.term})`, quote.subtotal, meta);
-      for (const d of quote.discounts) {
-        html += line(`Discount ${d.code} (${Math.round(d.rate * 100)}%)`, d.amount, meta, d.applied ? '' : 'muted',
-          d.applied ? '' : 'not applied under current policy');
-      }
-      for (const t of quote.taxes) {
-        html += line(`${t.name}${t.inclusive ? ' · inclusive' : ''}`, t.amount, meta);
-      }
-      html += line('Total', quote.total, meta, 'total');
-      el('c-breakdown').innerHTML = html;
-
-      el('c-rate').textContent = quote.rate
-        ? `≈ ${formatMoney(meta, { currency: meta.code, minor: Math.round(quote.rate.perUnitPerYear * (10 ** meta.exponent)) })} per unit / year`
-        : 'One-time purchase.';
-
-      const ex = quote.explain;
-      el('c-explain').innerHTML =
-        textRow('Matched rule', ex.matchedRule.label ?? `rule #${ex.ruleIndex}`) +
-        textRow('Rate source', ex.rateSource) +
-        textRow('Rounding policy', ex.roundingPolicy) +
-        ex.steps.map((s) => line(s.label, { currency: meta.code, minor: s.minor }, meta)).join('');
-
-      renderInsights(el('c-insights'), quote.insights, 'No cheaper equivalent found for this configuration.');
-    }
-
-    syncCoreProductInputs();
-    renderCore();
-
-    // ========================================================== SOFTWARE =====
-    const swEngine = softwareQuotes({
-      currencies: [
-        { code: 'USD', symbol: '$', exponent: 2 },
-        { code: 'EUR', symbol: '€', exponent: 2 },
-        { code: 'NGN', symbol: '₦', exponent: 2, roundingIncrement: 100 },
-      ],
-      rates: { EUR: 0.92, NGN: 1600 },
-      taxes: [{ id: 'vat', name: 'VAT', rate: 0.2 }],
-      plans: [
-        { id: 'starter', name: 'Starter', monthly: 8, annual: 80, seatTiers: [{ minSeats: 5, monthly: 6, annual: 60 }] },
-        {
-          id: 'pro', name: 'Pro', monthly: 15, annual: 150,
-          seatTiers: [{ minSeats: 5, monthly: 12, annual: 120 }, { minSeats: 20, monthly: 9, annual: 90 }],
-          termTiers: [{ minYears: 2, annual: 130 }],
-        },
-        {
-          id: 'enterprise', name: 'Enterprise', monthly: 40, annual: 400,
-          seatTiers: [{ minSeats: 10, monthly: 32, annual: 320 }, { minSeats: 50, monthly: 24, annual: 240 }],
-          termTiers: [{ minYears: 3, annual: 340 }],
-        },
-      ],
-    });
-
-    const ss = { plan: 'pro', interval: 'month', quantity: 1, term: 1, currency: 'USD' };
-
-    el('s-interval').addEventListener('click', (e) => {
-      const btn = e.target.closest('button');
-      if (!btn) return;
-      ss.interval = btn.dataset.val;
-      for (const b of el('s-interval').children) b.setAttribute('aria-pressed', String(b === btn));
-      renderSoftware();
-    });
-    el('s-plan').addEventListener('change', (e) => { ss.plan = e.target.value; renderSoftware(); });
-    el('s-currency').addEventListener('change', (e) => { ss.currency = e.target.value; renderSoftware(); });
-    el('s-quantity').addEventListener('input', (e) => { ss.quantity = Math.max(1, +e.target.value || 1); renderSoftware(); });
-    el('s-term').addEventListener('input', (e) => { ss.term = Math.max(1, +e.target.value || 1); renderSoftware(); });
-
-    async function renderSoftware () {
       let quote;
       try {
-        quote = await swEngine.quote({
-          sku: ss.plan, currency: ss.currency, interval: ss.interval, quantity: ss.quantity, term: ss.term,
-        }, { explore: true });
+        quote = q.quoteCart(request);
       } catch (err) {
-        renderError(el('s-breakdown'), err);
-        el('s-rate').textContent = '';
-        el('s-insights').innerHTML = '';
+        el('quote-output').innerHTML =
+          `<div class="error-box"><span class="code">${err.code ?? 'ERR'}</span>${err.message}</div>`;
         return;
       }
 
-      const meta = quote.currency;
-      let html = line('Unit price', quote.unitPrice, meta) +
-        line(`Subtotal (${ss.quantity} × ${ss.term})`, quote.subtotal, meta);
-      if (quote.discount.minor > 0) html += line('Discount', quote.discount, meta);
-      for (const t of quote.taxes) html += line(`${t.name} (${Math.round(t.rate * 100)}%)`, t.amount, meta);
-      html += line('Total', quote.total, meta, 'total');
-      el('s-breakdown').innerHTML = html;
-
-      el('s-rate').textContent = quote.rate
-        ? `≈ ${formatMoney(meta, { currency: meta.code, minor: Math.round(quote.rate.perUnitPerYear * (10 ** meta.exponent)) })} per seat / year`
-        : 'One-time purchase.';
-
-      renderInsights(el('s-insights'), quote.insights, 'No cheaper equivalent found — this is already a good shape for what you asked for.');
-    }
-
-    renderSoftware();
-
-    // =========================================================== DOMAINS =====
-    // Synthetic, offline DomainData — passing `data` skips all network access.
-    const DOMAIN_DATA = {
-      create: {
-        prices: {
-          com: { USD: 12.99, NGN: 21000 },
-          net: { USD: 14.99, NGN: 24000 },
-          xyz: { USD: 2.99, NGN: 4800 },
-          io: { USD: 45.0, NGN: 70000 },
-          ng: { USD: 20.0, NGN: 32000 },
-        },
-        providers: { com: 'Registrar A', net: 'Registrar A', xyz: 'Registrar B', io: 'Registrar B', ng: 'Registrar C' },
-      },
-      renew: { prices: { com: { USD: 14.99, NGN: 24000 } }, providers: {} },
-      transfer: { prices: { com: { USD: 9.99, NGN: 16000 } }, providers: {} },
-      restore: { prices: { com: { USD: 80.0, NGN: 128000 } }, providers: {} },
-      rates: [
-        { countryCode: 'US', currencyName: 'US Dollar', currencySymbol: '$', currencyCode: 'USD', exchangeRate: 1, inverseRate: 1 },
-        { countryCode: 'NG', currencyName: 'Naira', currencySymbol: '₦', currencyCode: 'NGN', exchangeRate: 1600, inverseRate: 1 / 1600 },
-      ],
-    };
-
-    const ds = { tld: 'com', variant: 'create', quantity: 1, term: 1, currency: 'USD', vatRate: 0.075 };
-
-    el('d-tld').addEventListener('change', (e) => { ds.tld = e.target.value; renderDomains(); });
-    el('d-variant').addEventListener('click', (e) => {
-      const btn = e.target.closest('button');
-      if (!btn) return;
-      ds.variant = btn.dataset.val;
-      for (const b of el('d-variant').children) b.setAttribute('aria-pressed', String(b === btn));
-      renderDomains();
-    });
-    el('d-quantity').addEventListener('input', (e) => { ds.quantity = Math.max(1, +e.target.value || 1); renderDomains(); });
-    el('d-term').addEventListener('input', (e) => { ds.term = Math.max(1, +e.target.value || 1); renderDomains(); });
-    el('d-currency').addEventListener('change', (e) => { ds.currency = e.target.value; renderDomains(); });
-    el('d-vat').addEventListener('change', (e) => { ds.vatRate = Number(e.target.value); renderDomains(); });
-
-    async function renderDomains () {
-      const preset = domainsPreset({ data: DOMAIN_DATA, vatRate: ds.vatRate });
-      const engine = await preset.quotes();
-
-      let quote;
-      try {
-        quote = await engine.quote({
-          sku: ds.tld, variant: ds.variant, currency: ds.currency, quantity: ds.quantity, term: ds.term,
-        }, { explore: true });
-      } catch (err) {
-        renderError(el('d-breakdown'), err);
-        el('d-provider').textContent = '';
-        el('d-insights').innerHTML = '';
-        return;
+      let html = '';
+      for (const line of quote.lines) {
+        html += `<div class="line-quote">
+          <div class="title">${line.sku} × ${line.quantity}${line.variant ? ` (${line.variant})` : ''}</div>
+          <div class="row"><span class="k">Unit price</span><span class="v">${formatMoney(line.listUnitMinor, line.currency)}</span></div>
+          ${line.adjustments.map((a) => `<div class="row"><span class="k">${a.label || a.kind} (${a.id.split(':').pop()})</span><span class="v">${a.kind === 'discount' ? '-' : '+'}${formatMoney(Math.abs(a.amountMinor), line.currency)}</span></div>`).join('')}
+          ${line.unitMinor !== line.listUnitMinor ? `<div class="row"><span class="k">Unit price (after adjustments)</span><span class="v">${formatMoney(line.unitMinor, line.currency)}</span></div>` : ''}
+          <div class="row"><span class="k">Subtotal</span><span class="v">${formatMoney(line.subtotalMinor, line.currency)}</span></div>
+          ${line.taxes.map((t) => `<div class="row"><span class="k">Tax ${(t.rate * 100).toFixed(2)}%</span><span class="v">${formatMoney(t.chargedMinor, line.currency)}</span></div>`).join('')}
+          <div class="row total"><span class="k">Line total</span><span class="v">${formatMoney(line.totalMinor, line.currency)}</span></div>
+          <div class="id">price ${line.priceId}</div>
+        </div>`;
       }
 
-      const meta = quote.currency;
-      let html = line('Unit price', quote.unitPrice, meta) +
-        line(`Subtotal (${ds.quantity} × ${ds.term}y)`, quote.subtotal, meta);
-      if (quote.discount.minor > 0) html += line('Discount', quote.discount, meta);
-      for (const t of quote.taxes) html += line(`${t.name} (${Math.round(t.rate * 100)}%)`, t.amount, meta);
-      html += line('Total', quote.total, meta, 'total');
-      el('d-breakdown').innerHTML = html;
+      html += '<div class="line-quote">';
+      for (const g of quote.groups) {
+        html += `<div class="row group-head"><span class="k">${g.frequency === 'one-time' ? 'One-time' : `Recurring / ${g.interval}`}</span><span class="v"></span></div>`;
+        html += `<div class="row"><span class="k">Total</span><span class="v">${formatMoney(g.totalMinor, quote.currency)}</span></div>`;
+      }
+      html += `<div class="row total"><span class="k">Due now</span><span class="v">${formatMoney(quote.dueNowMinor, quote.currency)}</span></div>`;
+      html += `<div class="id">asOf ${quote.asOf} · catalog ${quote.catalogHash.slice(0, 16)}…</div>`;
+      html += '</div>';
 
-      const provider = quote.product.metadata?.provider;
-      el('d-provider').textContent = provider ? `Registrar on file: ${provider}` : '';
-
-      renderInsights(el('d-insights'), quote.insights, 'No cheaper equivalent found for this configuration.');
+      el('quote-output').innerHTML = html;
     }
 
-    renderDomains();
-
-    // ============================================================ ERRORS =====
-    const errEngine = new Quotes(buildCoreConfig({ markup: 'none', taxMode: 'static', rounding: 'per-step', minChargeOn: true, minChargeValue: 50 }));
-
-    const ERROR_CASES = {
-      'unknown-sku': {
-        label: 'Unknown sku',
-        run: () => errEngine.quote({ sku: 'not-a-real-sku', currency: 'USD' }),
-      },
-      'unknown-variant': {
-        label: 'Unknown variant',
-        run: () => errEngine.quote({ sku: 'seats', variant: 'enterprise-tier', currency: 'USD' }),
-      },
-      'not-eligible': {
-        label: 'Academic variant requested without context.edu',
-        run: () => errEngine.quote({ sku: 'seats', variant: 'academic', currency: 'USD', context: { edu: false } }),
-      },
-      'bad-currency': {
-        label: 'Currency not in the configured list',
-        run: () => errEngine.quote({ sku: 'seats', currency: 'JPY' }),
-      },
-      'no-price': {
-        label: 'seats has no rule for interval=once',
-        run: () => errEngine.quote({ sku: 'seats', interval: 'once', currency: 'USD' }),
-      },
-      'invalid-request': {
-        label: 'Fractional quantity',
-        run: () => errEngine.quote({ sku: 'seats', currency: 'USD', quantity: 1.5 }),
-      },
-      'below-minimum': {
-        label: '1 seat/month = $20, under the $50 floor configured on this engine',
-        run: () => errEngine.quote({ sku: 'seats', currency: 'USD', quantity: 1, interval: 'month' }),
-      },
-    };
-
-    document.querySelectorAll('.errors-grid button').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const spec = ERROR_CASES[btn.dataset.err];
-        const box = document.createElement('div');
-        try {
-          const quote = await spec.run();
-          box.className = 'error-result ok';
-          box.innerHTML = `<div class="name">No error — ${btn.textContent}</div>
-            <div class="msg">${spec.label}: priced fine at ${formatMoney(quote.currency, quote.total)}. Try adjusting the catalog/context to actually trigger it.</div>`;
-        } catch (err) {
-          box.className = 'error-result thrown';
-          box.innerHTML = `<div class="name">${err.name ?? 'Error'}</div>
-            <div class="code">code: ${err.code ?? 'n/a'}</div>
-            <div class="msg">${spec.label} → ${err.message}</div>`;
-        }
-        el('e-results').prepend(box);
-      });
-    });
+    recompute();
   </script>
 </body>
 
