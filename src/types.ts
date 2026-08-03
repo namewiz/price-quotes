@@ -97,7 +97,7 @@ export interface CatalogDefaults extends Partial<Omit<CatalogRowInput, "product_
   /**
    * Per-currency metadata overrides (rounding increment, symbol). Exponents always derive from
    * Intl; increments have no Intl source and so must be authored here, since quantization
-   * happens at load (see design-docs/design-v2.md, "Currency metadata").
+   * happens at load.
    */
   currencies?: Record<string, CurrencyMetaInput>;
 }

@@ -186,12 +186,11 @@ test("Adversarial 6: crossed axes -> ERR_AMBIGUOUS_PRICE", () => {
   );
 });
 
-test("Adversarial 7: forgotten end date resolves via containment (see progress.md); closing early -> ERR_WINDOW_GAP", () => {
+test("Adversarial 7: forgotten end date resolves via containment; closing early -> ERR_WINDOW_GAP", () => {
   // NOTE: a seller who opens a new price without closing the old one leaves two overlapping,
   // both still-open windows. Rectangle containment resolves this the same way it resolves a
   // qty [1,10] vs qty [1,∞) tiering: the narrower, later-starting window dominates the
   // fully-open older one and wins from its start onward, so this loads rather than erroring.
-  // See progress.md's decisions log.
   const config = load(
     "product_sku,price_effective_start,price_effective_end,price_amount\n" +
     ".ng,,,10.00\n.ng,2026-01-01,,12.00",
