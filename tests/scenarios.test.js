@@ -8,38 +8,38 @@ import { load, expectCode } from "./helpers.js";
 test("Scenario 1: minimal two-column CSV prices with defaults", () => {
   const config = load("product_sku,price_amount\n.ng,10.00");
   const r = new Quotes(config).quote({ sku: ".ng", quantity: 1 }, "USD");
-  assert.equal(r.salePrice, 1000);
+  assert.equal(r.unit.sale, 1000);
 });
 
 test("Scenario 2: variant override dominates the wildcard", () => {
   const config = load("product_sku,product_variant,price_amount\n.ng,,10.00\n.ng,transfer,8.00");
   const q = new Quotes(config);
-  assert.equal(q.quote({ sku: ".ng", quantity: 1, variant: "transfer" }, "USD").salePrice, 800);
-  assert.equal(q.quote({ sku: ".ng", quantity: 1, variant: "create" }, "USD").salePrice, 1000);
-  assert.equal(q.quote({ sku: ".ng", quantity: 1 }, "USD").salePrice, 1000);
+  assert.equal(q.quote({ sku: ".ng", quantity: 1, variant: "transfer" }, "USD").unit.sale, 800);
+  assert.equal(q.quote({ sku: ".ng", quantity: 1, variant: "create" }, "USD").unit.sale, 1000);
+  assert.equal(q.quote({ sku: ".ng", quantity: 1 }, "USD").unit.sale, 1000);
 });
 
 test("Scenario 3: quantity tiers and the boundary", () => {
   const config = load("product_sku,min_quantity,max_quantity,price_amount\n.ng,1,1,16.00\n.ng,2,,15.00");
   const q = new Quotes(config);
-  assert.equal(q.quote({ sku: ".ng", quantity: 1 }, "USD").salePrice, 1600);
-  assert.equal(q.quote({ sku: ".ng", quantity: 2 }, "USD").salePrice, 1500);
-  assert.equal(q.quote({ sku: ".ng", quantity: 3 }, "USD").salePrice, 1500);
+  assert.equal(q.quote({ sku: ".ng", quantity: 1 }, "USD").unit.sale, 1600);
+  assert.equal(q.quote({ sku: ".ng", quantity: 2 }, "USD").unit.sale, 1500);
+  assert.equal(q.quote({ sku: ".ng", quantity: 3 }, "USD").unit.sale, 1500);
 });
 
 test("Scenario 4: multi-currency without FX, cart in an uncataloged currency errors", () => {
   const config = load("product_sku,currency,price_amount,charm,charm_position\n.ng,USD,12.34,to9,1\n.ng,JPY,15943,to9,2");
   const q = new Quotes(config);
-  assert.equal(q.quote({ sku: ".ng", quantity: 1 }, "USD").salePrice, 1199);
-  assert.equal(q.quote({ sku: ".ng", quantity: 1 }, "JPY").salePrice, 15999);
+  assert.equal(q.quote({ sku: ".ng", quantity: 1 }, "USD").unit.sale, 1199);
+  assert.equal(q.quote({ sku: ".ng", quantity: 1 }, "JPY").unit.sale, 15999);
   assert.throws(() => q.quote({ sku: ".ng", quantity: 1 }, "EUR"), (e) => e.code === "ERR_CURRENCY_NOT_IN_CATALOG");
 });
 
 test("Scenario 5: country-specific price with wildcard fallback", () => {
   const config = load("product_sku,country_code,price_amount\n.ng,,10.00\n.ng,NG,8.00");
   const q = new Quotes(config);
-  assert.equal(q.quote({ sku: ".ng", quantity: 1, country: "NG" }, "USD").salePrice, 800);
-  assert.equal(q.quote({ sku: ".ng", quantity: 1, country: "US" }, "USD").salePrice, 1000);
+  assert.equal(q.quote({ sku: ".ng", quantity: 1, country: "NG" }, "USD").unit.sale, 800);
+  assert.equal(q.quote({ sku: ".ng", quantity: 1, country: "US" }, "USD").unit.sale, 1000);
 });
 
 test("Scenario 6: effective-window rollover, exclusive end", () => {
@@ -48,8 +48,8 @@ test("Scenario 6: effective-window rollover, exclusive end", () => {
     ".ng,,2026-01-01,10.00\n.ng,2026-01-01,,12.00",
   );
   const q = new Quotes(config);
-  assert.equal(q.quote({ sku: ".ng", quantity: 1 }, "USD", new Date("2026-01-01T00:00:00Z")).salePrice, 1200);
-  assert.equal(q.quote({ sku: ".ng", quantity: 1 }, "USD", new Date("2025-12-31T23:59:59Z")).salePrice, 1000);
+  assert.equal(q.quote({ sku: ".ng", quantity: 1 }, "USD", new Date("2026-01-01T00:00:00Z")).unit.sale, 1200);
+  assert.equal(q.quote({ sku: ".ng", quantity: 1 }, "USD", new Date("2025-12-31T23:59:59Z")).unit.sale, 1000);
 });
 
 test("Scenario 7: bundles via variant axis, features are descriptive only", () => {
@@ -58,8 +58,8 @@ test("Scenario 7: bundles via variant axis, features are descriptive only", () =
     ".ng,,10.00,privacy=no\n.ng,with-privacy,13.00,privacy=yes",
   );
   const q = new Quotes(config);
-  assert.equal(q.quote({ sku: ".ng", quantity: 1 }, "USD").salePrice, 1000);
-  assert.equal(q.quote({ sku: ".ng", quantity: 1, variant: "with-privacy" }, "USD").salePrice, 1300);
+  assert.equal(q.quote({ sku: ".ng", quantity: 1 }, "USD").unit.sale, 1000);
+  assert.equal(q.quote({ sku: ".ng", quantity: 1, variant: "with-privacy" }, "USD").unit.sale, 1300);
   const product = config.products.find((p) => p.sku === ".ng");
   assert.equal(product.features.privacy, "yes"); // last row wins in our union; descriptive only
 });
@@ -67,7 +67,7 @@ test("Scenario 7: bundles via variant axis, features are descriptive only", () =
 test("Scenario 11: free tier is a legal zero total, not an error", () => {
   const config = load("product_sku,price_amount,charm\n.ng,0.00,none");
   const r = new Quotes(config).quote({ sku: ".ng", quantity: 1 }, "USD");
-  assert.equal(r.salePrice, 0);
+  assert.equal(r.unit.sale, 0);
   assert.equal(r.total, 0);
 });
 
@@ -133,9 +133,9 @@ test("Scenario 17: context-driven eligibility, absent context fails the constrai
   );
   const q = new Quotes(config);
   const pro = q.quoteCart({ currency: "USD", lines: [{ sku: ".ng", quantity: 1 }], context: { customer_tier: "pro" } });
-  assert.equal(pro.lines[0].salePrice, 800);
+  assert.equal(pro.lines[0].unit.sale, 800);
   const noContext = q.quoteCart({ currency: "USD", lines: [{ sku: ".ng", quantity: 1 }] });
-  assert.equal(noContext.lines[0].salePrice, 1000);
+  assert.equal(noContext.lines[0].unit.sale, 1000);
 });
 
 // ---- Adversarial catalogs ----

@@ -314,7 +314,7 @@
           ".ng,renew,10.00,markup,rate,0.10,,,,0.075,exclusive",
           ".ng,renew,10.00,discount,rate,0.05,Loyalty renewal,,,,",
         ].join("\n"),
-        // Hidden 10-15% markup baked into unitPrice, a context-eligible launch discount, a flat
+        // Hidden 10-15% markup baked into unit.list, a context-eligible launch discount, a flat
         // ICANN fee, and a separate renewal price with its own markup and loyalty discount.
         lines: [
           { sku: '.ng', quantity: 1, variant: '', country: '', frequency: 'one-time' },
@@ -331,7 +331,7 @@
           "pro-plan,recurring,year,290.00,discount,rate,0.15,Annual commitment",
           "seat-addon,recurring,month,9.00,,,,",
         ].join("\n"),
-        // The 30% markup is baked into unitPrice for both billing periods (never itemized); the
+        // The 30% markup is baked into unit.list for both billing periods (never itemized); the
         // annual plan additionally carries a visible 15% commitment discount. Two frequency
         // groups (monthly seats, yearly plan) show up as separate totals in the cart.
         lines: [
@@ -539,19 +539,21 @@
       for (const line of quote.lines) {
         html += `<div class="line-quote">
           <div class="title">${line.sku} × ${line.quantity}${line.variant ? ` (${line.variant})` : ''}</div>
-          <div class="row"><span class="k">Unit price</span><span class="v">${formatMoney(line.unitPrice, line.currency)}</span></div>
-          ${line.discounts.map((d) => `<div class="row"><span class="k">${d.label || 'Discount'} (${d.id.split(':').pop()})</span><span class="v">-${formatMoney(Math.abs(d.amount), line.currency)}</span></div>`).join('')}
-          ${line.fees.map((f) => `<div class="row"><span class="k">${f.label || 'Fee'} (${f.id.split(':').pop()})</span><span class="v">+${formatMoney(Math.abs(f.amount), line.currency)}</span></div>`).join('')}
-          ${line.salePrice !== line.unitPrice ? `<div class="row"><span class="k">Sale price</span><span class="v">${formatMoney(line.salePrice, line.currency)}</span></div>` : ''}
-          <div class="row"><span class="k">Subtotal</span><span class="v">${formatMoney(line.extendedSalePrice, line.currency)}</span></div>
-          ${line.taxes.map((t) => `<div class="row"><span class="k">Tax ${(t.rate * 100).toFixed(2)}%</span><span class="v">${formatMoney(t.amount, line.currency)}</span></div>`).join('')}
+          <div class="row"><span class="k">Unit price</span><span class="v">${formatMoney(line.unit.list, line.currency)}</span></div>
+          ${line.adjustments.discounts.map((d) => `<div class="row"><span class="k">${d.label || 'Discount'} (${d.id.split(':').pop()})</span><span class="v">-${formatMoney(Math.abs(d.amount), line.currency)}</span></div>`).join('')}
+          ${line.adjustments.fees.map((f) => `<div class="row"><span class="k">${f.label || 'Fee'} (${f.id.split(':').pop()})</span><span class="v">+${formatMoney(Math.abs(f.amount), line.currency)}</span></div>`).join('')}
+          ${line.unit.sale !== line.unit.list ? `<div class="row"><span class="k">Sale price</span><span class="v">${formatMoney(line.unit.sale, line.currency)}</span></div>` : ''}
+          <div class="row"><span class="k">Subtotal</span><span class="v">${formatMoney(line.extended.sale, line.currency)}</span></div>
+          ${line.adjustments.lineDiscounts.map((d) => `<div class="row"><span class="k">${d.label || 'Discount'} (${d.id.split(':').pop()})</span><span class="v">-${formatMoney(Math.abs(d.amount), line.currency)}</span></div>`).join('')}
+          ${line.adjustments.lineFees.map((f) => `<div class="row"><span class="k">${f.label || 'Fee'} (${f.id.split(':').pop()})</span><span class="v">+${formatMoney(Math.abs(f.amount), line.currency)}</span></div>`).join('')}
+          ${line.tax.charges.map((t) => `<div class="row"><span class="k">Tax ${(t.rate * 100).toFixed(2)}%</span><span class="v">${formatMoney(t.amount, line.currency)}</span></div>`).join('')}
           <div class="row total"><span class="k">Line total</span><span class="v">${formatMoney(line.total, line.currency)}</span></div>
           <div class="id">price ${line.priceId}</div>
           ${line.debug ? `<div class="row group-head"><span class="k">Debug breakdown</span><span class="v"></span></div>
-          <div class="row"><span class="k">Cost price</span><span class="v">${formatMoney(line.debug.costPrice, line.currency)}</span></div>
+          <div class="row"><span class="k">Cost price</span><span class="v">${formatMoney(line.debug.cost, line.currency)}</span></div>
           ${line.debug.markup.map((m) => `<div class="row"><span class="k">${m.label || 'Markup'} (${m.id.split(':').pop()})</span><span class="v">+${formatMoney(Math.abs(m.amount), line.currency)}</span></div>`).join('')}
-          ${line.debug.inclusiveTaxes.map((t) => `<div class="row"><span class="k">Inclusive tax ${(t.rate * 100).toFixed(2)}%</span><span class="v">${formatMoney(t.amount, line.currency)}</span></div>`).join('')}
-          <div class="row"><span class="k">Tax liability</span><span class="v">${formatMoney(line.debug.taxLiability, line.currency)}</span></div>` : ''}
+          ${line.debug.tax.inclusive.map((t) => `<div class="row"><span class="k">Inclusive tax ${(t.rate * 100).toFixed(2)}%</span><span class="v">${formatMoney(t.amount, line.currency)}</span></div>`).join('')}
+          <div class="row"><span class="k">Tax liability</span><span class="v">${formatMoney(line.debug.tax.liability, line.currency)}</span></div>` : ''}
         </div>`;
       }
 

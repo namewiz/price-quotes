@@ -89,42 +89,48 @@ function computeLine(
   const unitBasisAdjustments = eligibleAdjustments.filter((a) => a.type === "amount" && a.basis === "unit");
   const lineBasisAdjustments = eligibleAdjustments.filter((a) => a.type === "amount" && a.basis === "line");
 
-  // Stage 1 - markup: applied to the raw catalog price, folded into `unitPrice`, never itemized
+  // Stage 1 - markup: applied to the raw catalog price, folded into `unit.list`, never itemized
   // outside debug mode (business margin, not a customer-facing line item). No charm here — charm
-  // is sale-price psychology, not the sticker price.
+  // is sale-price psychology, not the sticker price. Markup is always unit-basis (§3 of the
+  // line-quote-shape design) — `adjustmentBasis` for a markup row is forced to "unit" at load.
   const markupRate = combineKind(eligibleAdjustments, "markup", "rate", Math.min);
   const markupAmountUnit = combineKind(unitBasisAdjustments, "markup", "amount", Math.min);
-  const unitPrice = quantize(price.baseUnitMinor * (1 + markupRate) + markupAmountUnit, meta.increment, price.quantization);
-  const extendedUnitPrice = unitPrice * line.quantity;
-  const markupAmountLine = combineKind(lineBasisAdjustments, "markup", "amount", Math.min);
+  const unitList = quantize(price.baseUnitMinor * (1 + markupRate) + markupAmountUnit, meta.increment, price.quantization);
+  const extendedList = unitList * line.quantity;
 
-  // Stage 2 - fee/discount: applied on top of `unitPrice`, then charm -> `salePrice`.
+  // Stage 2 - fee/discount: applied on top of `unit.list`, then charm -> `unit.sale`.
   const feeRate = combineKind(eligibleAdjustments, "fee", "rate", Math.min);
   const discountRate = combineKind(eligibleAdjustments, "discount", "rate", Math.max);
   const netRateFactor = 1 + feeRate - discountRate;
-  const rateAdjustedUnit = quantize(unitPrice * netRateFactor, meta.increment, price.quantization);
+  const rateAdjustedUnit = quantize(unitList * netRateFactor, meta.increment, price.quantization);
 
   const feeAmountUnit = combineKind(unitBasisAdjustments, "fee", "amount", Math.min);
   const discountAmountUnit = combineKind(unitBasisAdjustments, "discount", "amount", Math.max);
   const unitBeforeCharm = Math.max(0, rateAdjustedUnit + feeAmountUnit - discountAmountUnit);
 
-  const salePrice = charmPrice(unitBeforeCharm, price.charm, price.charmPosition);
-  const extendedSalePrice = salePrice * line.quantity;
-  if (!Number.isSafeInteger(extendedSalePrice)) {
+  const unitSale = charmPrice(unitBeforeCharm, price.charm, price.charmPosition);
+  const extendedSale = unitSale * line.quantity;
+  if (!Number.isSafeInteger(extendedSale)) {
     throw new QuoteError("ERR_AMOUNT_OVERFLOW", `line "${line.ref ?? line.sku}": unit x quantity exceeds the safe integer range`);
   }
 
-  // Line-scoped: `amount` adjustments with basis "line" (the default), applied after charm.
+  // Line-scoped: `amount` adjustments with basis "line" (the default for discount/fee), applied after charm.
   const feeLine = combineKind(lineBasisAdjustments, "fee", "amount", Math.min);
   const discountLine = combineKind(lineBasisAdjustments, "discount", "amount", Math.max);
-  const netLineAdjustment = feeLine - discountLine;
-  const taxableMinor = Math.max(0, extendedSalePrice + netLineAdjustment + markupAmountLine);
+  const lineNet = feeLine - discountLine;
+  const taxableMinor = Math.max(0, extendedSale + lineNet);
 
-  const discountAdjustments = eligibleAdjustments.filter((a) => a.kind === "discount");
-  const feeAdjustments = eligibleAdjustments.filter((a) => a.kind === "fee");
+  // `basis` only has meaning for `amount` adjustments — a `rate` adjustment always applies at the
+  // unit level (Stage 2), so it is itemized as unit-basis regardless of its (irrelevant) basis field.
+  const discountAdjustments = eligibleAdjustments.filter((a) => a.kind === "discount" && (a.type === "rate" || a.basis === "unit"));
+  const feeAdjustments = eligibleAdjustments.filter((a) => a.kind === "fee" && (a.type === "rate" || a.basis === "unit"));
+  const lineDiscountAdjustments = eligibleAdjustments.filter((a) => a.kind === "discount" && a.type === "amount" && a.basis === "line");
+  const lineFeeAdjustments = eligibleAdjustments.filter((a) => a.kind === "fee" && a.type === "amount" && a.basis === "line");
   const markupAdjustments = eligibleAdjustments.filter((a) => a.kind === "markup");
-  const discounts = toAppliedCharges(discountAdjustments, unitPrice, line.quantity);
-  const fees = toAppliedCharges(feeAdjustments, unitPrice, line.quantity);
+  const discounts = toAppliedCharges(discountAdjustments, unitList, line.quantity);
+  const fees = toAppliedCharges(feeAdjustments, unitList, line.quantity);
+  const lineDiscounts = toAppliedCharges(lineDiscountAdjustments, unitList, line.quantity);
+  const lineFees = toAppliedCharges(lineFeeAdjustments, unitList, line.quantity);
 
   let taxChargedMinor = 0;
   let taxAddedMinor = 0;
@@ -158,18 +164,21 @@ function computeLine(
   let debugInfo: LineQuoteDebug | undefined;
   if (debug) {
     debugInfo = {
-      costPrice: price.baseUnitMinor,
+      cost: price.baseUnitMinor,
       markup: toAppliedCharges(markupAdjustments, price.baseUnitMinor, line.quantity),
-      unitPrice,
-      inclusiveTaxes,
-      taxLiability: taxChargedMinor,
+      tax: { inclusive: inclusiveTaxes, liability: taxChargedMinor },
     };
   }
 
   return {
     ref: line.ref, sku, priceId: price.id, quantity: line.quantity, variant: price.variant, country: price.country,
-    currency, frequency, interval: line.interval, unitPrice, extendedUnitPrice, salePrice, extendedSalePrice,
-    discounts, fees, netLineAdjustment, taxes, tax: taxAddedMinor, total, debug: debugInfo,
+    currency, frequency, interval: line.interval,
+    unit: { list: unitList, sale: unitSale },
+    extended: { list: extendedList, sale: extendedSale },
+    adjustments: { discounts, fees, lineDiscounts, lineFees, lineNet },
+    tax: { base: taxableMinor, amount: taxAddedMinor, charges: taxes },
+    total,
+    debug: debugInfo,
   };
 }
 

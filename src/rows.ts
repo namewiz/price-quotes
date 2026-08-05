@@ -290,6 +290,13 @@ export function resolveRows(rawRows: CatalogRowInput[], defaults: CatalogDefault
       push(issues, "ERR_NEGATIVE_AMOUNT", row, "adjustment_value", `a negative ${adjustmentKind} value means a discount — use adjustment_kind: discount instead`);
       continue;
     }
+    if (hasAdjustment && adjustmentKind === "markup" && raw.adjustment_basis === "line") {
+      push(
+        issues, "ERR_MARKUP_BASIS", row, "adjustment_basis",
+        `markup has no line-basis meaning — it is always folded into the unit price; use adjustment_kind: fee for a genuine per-line charge`,
+      );
+      continue;
+    }
 
     out.push({
       row,
@@ -336,7 +343,7 @@ export function resolveRows(rawRows: CatalogRowInput[], defaults: CatalogDefault
       adjustmentKind,
       adjustmentLabel: raw.adjustment_label ?? "",
       adjustmentType,
-      adjustmentBasis: raw.adjustment_basis ?? "line",
+      adjustmentBasis: raw.adjustment_basis ?? (adjustmentKind === "markup" ? "unit" : "line"),
       adjustmentValue,
       adjustmentStart: raw.adjustment_start ? Number(raw.adjustment_start) : null,
       adjustmentEnd: raw.adjustment_end ? Number(raw.adjustment_end) : null,

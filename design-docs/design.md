@@ -35,7 +35,7 @@ a quote must be fast enough that nobody thinks about it.
 6. **O(1) pricing.** Resolving a price is a bounded number of hash lookups and integer
    operations, independent of catalog size.
 7. **Correct, reconcilable money math.** All amounts are integer minor units. Quantization
-   (representation) and charm (pricing policy) stay distinct. `salePrice × quantity` is exact,
+   (representation) and charm (pricing policy) stay distinct. `unit.sale × quantity` is exact,
    so unit, extended and total always reconcile.
 8. **Reproducible.** A quote is a pure function of `(catalog, cart, asOf)`, and records the
    catalog hash and `asOf` it was computed against.
@@ -123,7 +123,7 @@ interface CatalogRowInput {
   adjustment_id, adjustment_label: string;
   adjustment_kind: "discount" | "markup" | "fee";   // default "discount"
   adjustment_type: "rate" | "amount";               // default "rate"
-  adjustment_basis: "unit" | "line";                // default "line"; only meaningful for "amount"
+  adjustment_basis: "unit" | "line";                // default "line" (forced "unit" for markup); only meaningful for "amount"
   adjustment_value: number;                         // rate: fraction in [0,1]. amount: major units, >= 0
   adjustment_start, adjustment_end: string;         // parsed but not yet enforced — see Judgment calls
   adjustment_stackable: boolean;                    // default false
@@ -653,8 +653,8 @@ seller's call) or a *tax* (not):
 
 **The rounding points**, and nowhere else:
 
-1. **The combined markup rate**, applied once to `baseUnitMinor` and quantized → `unitPrice`.
-2. **The combined fee-minus-discount rate**, applied once to `unitPrice` and quantized. All rate
+1. **The combined markup rate**, applied once to `baseUnitMinor` and quantized → `unit.list`.
+2. **The combined fee-minus-discount rate**, applied once to `unit.list` and quantized. All rate
    adjustments within a stage are summed *as exact rates first* into a single net factor, then
    multiplied and quantized once. Quantizing each adjustment separately and summing makes the
    total depend on visit order: two 5% discounts on 999 minor units give `50 + 50 = 100` applied
@@ -663,6 +663,7 @@ seller's call) or a *tax* (not):
    result.
 3. **Each `amount` adjustment**, already an integer after load-time quantization — multiplied by
    quantity when `adjustment_basis` is `unit`, applied once to the line when it is `line`. Exact.
+   Markup amounts are always `unit`-basis — see "Markup is always unit-basis" below.
 4. **Each tax line, individually**, against its own base, half away from zero. Taxes round per
    line rather than on a summed rate because they are itemized on invoices and each must
    reconcile on its own.
@@ -673,13 +674,13 @@ Points 1–2 land *before* charm, so for a row with `charm` set the snapping usu
 quantization entirely — the mode matters most for the default `charm: none`, which is exactly
 where a seller's `floor`/`ceil` intent has nothing else to express it.
 
-Every other operation — `salePrice × quantity`, summing line totals into `amountDue` — is exact
+Every other operation — `unit.sale × quantity`, summing line totals into `amountDue` — is exact
 integer arithmetic with no rounding. Because rounding only ever happens on a rate application,
 and each line's components are integers rounded when produced, the invariant holds: displayed
 components always sum to the displayed total.
 
 **Bounds.** All monetary values are integer minor units held in JavaScript numbers, valid to
-`Number.MAX_SAFE_INTEGER`. A `salePrice × quantity` product exceeding it is `ERR_AMOUNT_OVERFLOW`
+`Number.MAX_SAFE_INTEGER`. A `unit.sale × quantity` product exceeding it is `ERR_AMOUNT_OVERFLOW`
 at quote time; a `baseUnitMinor` above `2^40` is a load error.
 
 ### Currency metadata
@@ -699,29 +700,36 @@ The pipeline order is fixed. Everything expressible per unit is applied per unit
 
 ```
 [load]  parse → quantize                                    ⇒ baseUnitMinor
-[quote] baseUnitMinor → markup → quantize                   ⇒ unitPrice   (× qty ⇒ extendedUnitPrice)
-        unitPrice → fee/discount → quantize → charm         ⇒ salePrice   (× qty ⇒ extendedSalePrice)
-        extendedSalePrice → line-basis adjustments → tax    ⇒ total
+[quote] baseUnitMinor → markup → quantize                   ⇒ unit.list    (× qty ⇒ extended.list)
+        unit.list → fee/discount → quantize → charm         ⇒ unit.sale    (× qty ⇒ extended.sale)
+        extended.sale → line-basis adjustments               ⇒ tax.base
+        tax.base → tax                                       ⇒ total
 ```
 
-**Stage 1 — markup.** Markup rate and unit-basis markup amounts apply to the raw catalog
-`baseUnitMinor`, quantized, giving `unitPrice`. No charm here: charm is sale-price psychology,
-not sticker-price policy. Markup is the seller's margin, so it is **folded into `unitPrice` and
-never itemized** in the customer-facing output — it changes what the price *is*, rather than
-being a charge levied on top of it. Line-basis markup is carried as a hidden accumulator that
-still affects the tax base and `total`, but never appears in `fees` or `netLineAdjustment`.
-`debug` exposes all of it.
+**Stage 1 — markup.** Markup rate and markup amounts apply to the raw catalog `baseUnitMinor`,
+quantized, giving `unit.list`. No charm here: charm is sale-price psychology, not sticker-price
+policy. Markup is the seller's margin, so it is **folded into `unit.list` and never itemized** in
+the customer-facing output — it changes what the price *is*, rather than being a charge levied on
+top of it. `debug` exposes it.
+
+**Markup is always unit-basis.** `adjustment_basis` has no meaning for a markup row: a per-line
+markup amount cannot be folded into a per-unit price without dividing by quantity, which would
+break integer exactness. A blank `adjustment_basis` on a markup row resolves to `unit`, not the
+catalog's `line` default; an explicit `adjustment_basis: line` on a markup row is a load error,
+`ERR_MARKUP_BASIS`, pointing the author at `fee` for a genuine per-line charge. This is what keeps
+`tax.base === extended.sale + adjustments.lineNet` an unconditional identity — there is no third,
+invisible contributor to the taxable amount.
 
 **Stage 2 — fee and discount.** Fee/discount rates and unit-basis amounts apply on top of
-`unitPrice` — not the raw catalog price — then quantize, then charm, giving `salePrice`. A 20%
+`unit.list` — not the raw catalog price — then quantize, then charm, giving `unit.sale`. A 20%
 reseller markup on $12.34 must produce $14.99, not $14.39; charming before the markup gives the
 latter.
 
 **All rate adjustments within a stage share one base and combine additively:**
 
 ```
-unitPrice = quantize(baseUnit × (1 + Σmarkup_rate) + Σmarkup_unit_amount)
-salePrice = charm(quantize(unitPrice × (1 + Σfee_rate − Σdiscount_rate))
+unit.list = quantize(baseUnit × (1 + Σmarkup_rate) + Σmarkup_unit_amount)
+unit.sale = charm(quantize(unit.list × (1 + Σfee_rate − Σdiscount_rate))
                   + Σfee_unit_amount − Σdiscount_unit_amount)
 ```
 
@@ -731,28 +739,29 @@ the kinds are visited — a 10% markup then a 10% discount is not a 10% discount
 Within a kind, stackable rows sum and non-stackable rows compete, the single
 most-favorable-to-the-buyer one winning per kind (largest discount, smallest fee/markup).
 
-**Line-scoped adjustments.** `amount` adjustments with `adjustment_basis: line` (the default) are
-inherently line-scoped — a $5-off-the-order coupon cannot be pushed onto a unit without dividing
-by quantity, which would break integer exactness. These apply **after** charm, to the line total,
-netted into `netLineAdjustment` (fee minus discount, so a net line discount makes it negative). A
+**Line-scoped adjustments.** `amount` adjustments with `adjustment_basis: line` (the default for
+discount/fee) are inherently line-scoped — a $5-off-the-order coupon cannot be pushed onto a unit
+without dividing by quantity, which would break integer exactness. These apply **after** charm, to
+the line total, itemized separately in `adjustments.lineDiscounts`/`adjustments.lineFees` and
+netted into `adjustments.lineNet` (fee minus discount, so a net line discount makes it negative). A
 coupon does not produce a charm-priced line, and nobody expects it to.
 
 **Charm of zero is zero.** A fully discounted unit stays free rather than snapping to the nearest
 charm candidate, which for `to9` at position 1 would be −$0.01. This is a definitional carve-out,
 not a clamp: the charm function is the identity at zero.
 
-**Tax.** Computed on the post-adjustment taxable amount (`extendedSalePrice + netLineAdjustment`
-plus any hidden line markup). `exclusive` adds to the total; `inclusive` is extracted from the
-price rather than added; `unspecified` follows the configurable `defaultTaxBehavior` (default
-`exclusive`) — a policy, not a definition, and one that silently inflates a total when the
-catalog didn't say to. Multiple taxes apply additively on the same base unless `tax_compound` is
-set, which Quebec (GST + QST) and several LATAM regimes require.
+**Tax.** Computed on the post-adjustment taxable amount, exposed as `tax.base`
+(`extended.sale + adjustments.lineNet`, exact — see above). `exclusive` adds to the total;
+`inclusive` is extracted from the price rather than added; `unspecified` follows the configurable
+`defaultTaxBehavior` (default `exclusive`) — a policy, not a definition, and one that silently
+inflates a total when the catalog didn't say to. Multiple taxes apply additively on the same base
+unless `tax_compound` is set, which Quebec (GST + QST) and several LATAM regimes require.
 
 Two running totals are maintained: tax **charged** (which includes inclusive tax, because it is
 real tax owed) and tax **added** (which does not, because it is already in the price).
-Conflating them reports zero tax on inclusive-tax quotes. `LineQuote.tax` is the *added* figure —
-what the customer is being charged extra — while `debug.taxLiability` is the *charged* figure,
-which is what remittance needs.
+Conflating them reports zero tax on inclusive-tax quotes. `LineQuote.tax.amount` is the *added*
+figure — what the customer is being charged extra — while `debug.tax.liability` is the *charged*
+figure, which is what remittance needs.
 
 **Inclusive tax × discount:** a discount reduces a gross that already contains tax, so tax is
 recomputed from the discounted gross, reducing net and tax proportionally. Worked: unit gross
@@ -768,13 +777,13 @@ recomputed from the discounted gross, reducing net and tax proportionally. Worke
 | --- | --- | --- | --- |
 | parse | load | `"12.34"` → 12.34 major | — |
 | quantize | load | 12.34 × 100 | `baseUnitMinor` 1234 |
-| markup (none) | quote | — | `unitPrice` 1234 |
+| markup (none) | quote | — | `unit.list` 1234 |
 | discount | quote | 1234 × (1 − 0.10) = 1110.6 → round | 1111 |
-| charm `to9` p=1 | quote | nearest of 1099, 1199 | **`salePrice` 1099** ($10.99) |
-| × quantity 3 | quote | exact integer multiply | `extendedSalePrice` 3297 |
+| charm `to9` p=1 | quote | nearest of 1099, 1199 | **`unit.sale` 1099** ($10.99) |
+| × quantity 3 | quote | exact integer multiply | `extended.sale` 3297 |
 | tax 7.5% exclusive | quote | round(247.275) = 247 | **`total` 3544** ($35.44) |
 
-`salePrice × quantity` = $10.99 × 3 = $32.97 = `extendedSalePrice`. Every displayed figure
+`unit.sale × quantity` = $10.99 × 3 = $32.97 = `extended.sale`. Every displayed figure
 reconciles, and the discounted price the customer sees is itself a charm price.
 
 The same line with **no** discount charms 1234 to 1199 — so the list price a browsing customer
@@ -846,9 +855,9 @@ construction-time, so it cannot arrive from untrusted spreadsheet input — but 
 it, reproducibility depends on application code as well as on the catalog hash, and it runs on
 every line, so it must be O(1) and allocation-light.
 
-### `LineQuote`, and why it is shaped like an invoice
+### `LineQuote`, and why it is shaped by scope, not by pipeline stage
 
-Every amount is integer minor units. The fields are in pipeline order, each building on the last.
+Every amount is integer minor units.
 
 ```ts
 interface LineQuote {
@@ -856,44 +865,60 @@ interface LineQuote {
   variant: string | null; country: string | null; currency: string;
   frequency: Frequency; interval?: FrequencyInterval;
 
-  unitPrice: number;           // catalog price with markup folded in; pre-discount/fee/charm
-  extendedUnitPrice: number;   // unitPrice * quantity — the "list" line total
-  salePrice: number;           // actual unit price charged, after discount/fee/charm
-  extendedSalePrice: number;   // salePrice * quantity
-  discounts: AppliedCharge[];  // itemized unit-basis discounts, valued against unitPrice
-  fees: AppliedCharge[];
-  netLineAdjustment: number;   // net line-basis fee minus discount; negative when discount wins
-  taxes: AppliedTax[];         // only taxes that actually add to the bill
-  tax: number;                 // sum of taxes[].amount; 0 when all applicable taxes are inclusive
-  total: number;               // extendedSalePrice + netLineAdjustment + tax
+  unit:     { list: number; sale: number };   // per-unit amounts
+  extended: { list: number; sale: number };   // × quantity
+
+  adjustments: {
+    discounts: AppliedCharge[];      // unit-basis, valued against unit.list
+    fees:      AppliedCharge[];      // unit-basis
+    lineDiscounts: AppliedCharge[];  // line-basis
+    lineFees:      AppliedCharge[];  // line-basis
+    lineNet:   number;               // sum(lineFees) − sum(lineDiscounts); signed
+  };
+
+  tax: {
+    base:    number;                 // the amount tax was computed on
+    amount:  number;                 // total added to the bill; 0 when all applicable tax is inclusive
+    charges: AppliedTax[];           // only taxes that add to the bill
+  };
+
+  total: number;
   debug?: LineQuoteDebug;      // present only when QuotesOptions.debug is true
 }
 ```
 
-The naming pattern is deliberate. `extended<X>` is the standard invoicing term for "price ×
-quantity", so `extendedUnitPrice`/`extendedSalePrice` read as a matched pre-/post-discount pair.
-`netLineAdjustment` states both that it is a net value and that it is line-scoped, which
-distinguishes it from the unit-basis fees and discounts itemized alongside it. Note that
-`extendedSalePrice` is computed *before* `netLineAdjustment` and tax, so
-`extendedSalePrice + tax !== total` in general.
+`unit`/`extended` nest by scope instead of using a prefix convention (`unitPrice` vs
+`extendedUnitPrice`), which is the single most likely machine-misuse failure in a flat shape:
+`unit.sale` cannot be autocompleted into `extended.sale` the way string-prefixed siblings can.
+`list`/`sale` is the standard retail pair — `list` is the pre-deal price, `sale` what is actually
+charged. Every neighbouring pair reconciles exactly:
+
+```
+extended.list === unit.list × quantity
+extended.sale === unit.sale × quantity
+tax.base      === extended.sale + adjustments.lineNet
+total         === tax.base + tax.amount
+```
+
+There is no pair of adjacent fields whose obvious combination is wrong — in particular,
+`extended.sale + tax.amount !== total` in general (a line-basis coupon sits between them), but
+that gap is now named and exposed as `tax.base`, rather than silently absorbed.
 
 **Two things are hidden from the plain output**, because they are the seller's business rather
 than the customer's:
 
-- **Markup**, folded into `unitPrice` and never itemized. A customer sees the price; the margin
+- **Markup**, folded into `unit.list` and never itemized. A customer sees the price; the margin
   inside it is not a line item.
-- **Inclusive tax**, which never appears in `taxes` because nothing was added to the bill. A tax
-  line item the customer isn't being charged for is misleading on an invoice.
+- **Inclusive tax**, which never appears in `tax.charges` because nothing was added to the bill. A
+  tax line item the customer isn't being charged for is misleading on an invoice.
 
 Both are inspectable via `QuotesOptions.debug`, which is for developers and business owners:
 
 ```ts
 interface LineQuoteDebug {
-  costPrice: number;            // Price.baseUnitMinor — the raw catalog price, before markup
-  markup: AppliedCharge[];      // itemized markup folded into unitPrice
-  unitPrice: number;            // same value as the public unitPrice, for a one-glance view
-  inclusiveTaxes: AppliedTax[]; // taxes baked into the price, with their extracted amount
-  taxLiability: number;         // total real tax owed: exclusive + the inclusive-extracted portion
+  cost: number;                                         // Price.baseUnitMinor — raw catalog price, before markup
+  markup: AppliedCharge[];                              // itemized markup folded into unit.list
+  tax: { inclusive: AppliedTax[]; liability: number };  // mirrors the public tax object
 }
 ```
 
@@ -915,7 +940,7 @@ column, value and a suggested fix:
 `ERR_QUANTITY_GAP`, `ERR_WINDOW_GAP`, `ERR_INVERTED_RANGE`, `ERR_CHARM_UNDERFLOW`,
 `ERR_CHARM_INCREMENT_CONFLICT`, `ERR_DISCOUNT_EXCEEDS_PRICE`, `ERR_MIXED_STACK_TYPES`,
 `ERR_CONSTRAINT_SYNTAX`, `ERR_CONSTRAINT_UNKNOWN_FIELD`, `ERR_CONSTRAINT_CART_SCOPE`,
-`ERR_CONSTRAINT_ON_PRICE`, `ERR_PRICE_SANITY_RANGE`.
+`ERR_CONSTRAINT_ON_PRICE`, `ERR_PRICE_SANITY_RANGE`, `ERR_MARKUP_BASIS`.
 
 `ERR_AMBIGUOUS_PRICE` carries both price IDs and the overlapping quantity ranges, because "two
 prices conflict" without those is not actionable on a 200-row sheet.
@@ -938,7 +963,7 @@ Each is a test in `tests/scenarios.test.js`, where the full CSV lives.
 | 5 | Blank country + `NG` country | Same dominance shape as variants, different axis |
 | 6 | Windows abutting at `2026-01-01` | `_end` is exclusive, so no overlap and no gap. `asOf = 2026-01-01T00:00:00Z` → the new price; one second earlier → the old. Impossible to test without an explicit `asOf` |
 | 7 | Variant-based bundle; separate-SKU bundle | See *Bundles* |
-| 8 | Charm with markup, with discount, with both | `salePrice × quantity === extendedSalePrice`; the final unit is always a charm candidate. 20% markup on 1234 → 1481 → **$14.99**, not $14.39 |
+| 8 | Charm with markup, with discount, with both | `unit.sale × quantity === extended.sale`; the final unit is always a charm candidate. 20% markup on 1234 → 1481 → **$14.99**, not $14.39 |
 | 9 | 7.5% inclusive tax + 10% discount | Tax *charged* non-zero while tax *added* is zero; total equals the discounted gross |
 | 10 | GST 5% + QST 9.975% with `tax_compound` | The second computes on base + first; the same rows without compounding give the additive result |
 | 11 | `price_amount` of `0` | A zero price is legal and distinct from a blank cell. A zero total is a valid quote |
@@ -1053,7 +1078,7 @@ Proposals addressing several of these live in [`clarity.md`](./clarity.md).
   shown not to reject legitimate catalogs, and the 2-D case (Scenario 16) is the one a naive
   implementation gets wrong.
 - **`money.test.js`** — every row of the charm table; the reconciliation property
-  (`salePrice × quantity === extendedSalePrice`) across quantities and charm modes and both
+  (`unit.sale × quantity === extended.sale`) across quantities and charm modes and both
   exponent-0 and exponent-2 currencies; quantization modes and rounding increments; the
   rounding-order-independence cases; the safe-integer bounds; the known-hard regressions
   (unbounded-range comparison, inclusive-tax double-counting, half-cent float error,

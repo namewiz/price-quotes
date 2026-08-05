@@ -28,7 +28,8 @@ export type LoadErrorCode =
   | "ERR_CONSTRAINT_UNKNOWN_FIELD"
   | "ERR_CONSTRAINT_CART_SCOPE"
   | "ERR_CONSTRAINT_ON_PRICE"
-  | "ERR_PRICE_SANITY_RANGE";
+  | "ERR_PRICE_SANITY_RANGE"
+  | "ERR_MARKUP_BASIS";
 
 export type QuoteTimeErrorCode =
   | "ERR_UNKNOWN_SKU"

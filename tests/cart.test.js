@@ -40,8 +40,8 @@ test("the same cart at two asOf values spanning an effective-window boundary giv
   const q = new Quotes(config);
   const before = q.quoteCart({ currency: "USD", lines: [{ sku: ".ng", quantity: 1 }], asOf: new Date("2025-12-31T23:59:59Z") });
   const after = q.quoteCart({ currency: "USD", lines: [{ sku: ".ng", quantity: 1 }], asOf: new Date("2026-01-01T00:00:00Z") });
-  assert.equal(before.lines[0].salePrice, 1000);
-  assert.equal(after.lines[0].salePrice, 1200);
+  assert.equal(before.lines[0].unit.sale, 1000);
+  assert.equal(after.lines[0].unit.sale, 1200);
 });
 
 test("a quote replayed from (catalogHash, asOf, lines) is identical", () => {
@@ -70,7 +70,7 @@ test("property: total is never negative across a range of quantities, discounts 
   for (let quantity = 1; quantity <= 25; quantity++) {
     const r = q.quote({ sku: ".ng", quantity }, "USD");
     assert.ok(r.total >= 0, `quantity=${quantity} total=${r.total}`);
-    assert.equal(r.salePrice * quantity, r.extendedSalePrice);
+    assert.equal(r.unit.sale * quantity, r.extended.sale);
   }
 });
 
@@ -83,7 +83,7 @@ test("property: row order never changes the quote for equivalent catalogs", () =
   const ra = qa.quoteCart(cart);
   const rb = qb.quoteCart(cart);
   assert.equal(ra.amountDue, rb.amountDue);
-  assert.deepEqual(ra.lines.map((l) => l.salePrice), rb.lines.map((l) => l.salePrice));
+  assert.deepEqual(ra.lines.map((l) => l.unit.sale), rb.lines.map((l) => l.unit.sale));
 });
 
 test("performance: quote latency is flat from 100 to 100,000 price rows", () => {

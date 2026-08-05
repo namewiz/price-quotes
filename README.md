@@ -86,16 +86,20 @@ All amounts are integer minor units (cents, kobo, …), listed in pipeline order
 
 | Field | Meaning |
 |---|---|
-| `unitPrice` | Regular per-unit price: the catalog price with any markup folded in. The "list price" before any deal. |
-| `extendedUnitPrice` | `unitPrice * quantity` — the pre-discount list line total. |
-| `salePrice` | Actual per-unit price charged, after unit-basis discounts/fees and charm. |
-| `extendedSalePrice` | `salePrice * quantity`. Computed **before** `netLineAdjustment` and tax, so `extendedSalePrice + tax` is *not* generally `total`. |
-| `discounts` / `fees` | Itemized unit-basis adjustments (`AppliedCharge[]`), valued against `unitPrice`. |
-| `netLineAdjustment` | Net *line-basis* fee minus discount. Negative when the line discount exceeds the line fee. |
-| `taxes` | Taxes that actually add to the bill (`AppliedTax[]`). |
-| `tax` | Sum of `taxes[].amount`. Zero when every applicable tax is inclusive. |
-| `total` | `extendedSalePrice + netLineAdjustment + tax`. |
+| `unit.list` | Regular per-unit price: the catalog price with any markup folded in. The "list price" before any deal. |
+| `unit.sale` | Actual per-unit price charged, after unit-basis discounts/fees and charm. |
+| `extended.list` / `extended.sale` | `unit.* * quantity`. |
+| `adjustments.discounts` / `adjustments.fees` | Itemized unit-basis adjustments (`AppliedCharge[]`), valued against `unit.list`. |
+| `adjustments.lineDiscounts` / `adjustments.lineFees` | Itemized line-basis adjustments (`AppliedCharge[]`). |
+| `adjustments.lineNet` | `sum(lineFees) - sum(lineDiscounts)`. Signed; negative when line discounts exceed line fees. |
+| `tax.charges` | Taxes that actually add to the bill (`AppliedTax[]`). |
+| `tax.amount` | Sum of `tax.charges[].amount`. Zero when every applicable tax is inclusive. |
+| `tax.base` | `extended.sale + adjustments.lineNet` — the amount tax was computed on. |
+| `total` | `tax.base + tax.amount`. |
 | `amountDue` | On `CartQuote`: the sum of every line's `total`. |
+
+Every neighbouring pair of fields sums correctly: `extended.* === unit.* * quantity`,
+`tax.base === extended.sale + adjustments.lineNet`, `total === tax.base + tax.amount`.
 
 Plus identity fields echoed from resolution: `ref`, `sku`, `priceId`, `quantity`, `variant`,
 `country`, `currency`, `frequency`, `interval`.
@@ -142,21 +146,22 @@ loadCatalog(csv, {
 ## Debug breakdown
 
 The plain quote hides two things that are the seller's business, not the customer's: catalog
-**markup**, which is folded into `unitPrice` and never itemized, and **inclusive tax**, which
-never appears in `taxes` because nothing was added to the bill. Pass `debug: true` to see both:
+**markup**, which is folded into `unit.list` and never itemized, and **inclusive tax**, which
+never appears in `tax.charges` because nothing was added to the bill. Pass `debug: true` to see both:
 
 ```ts
 const quotes = new Quotes(config, { debug: true });
 const cart = quotes.quoteCart({ currency: "USD", lines: [{ sku: ".ng", quantity: 1 }] });
 
-const { costPrice, markup, unitPrice, inclusiveTaxes, taxLiability } = cart.lines[0].debug;
+const { cost, markup, tax } = cart.lines[0].debug;
 ```
 
-- `costPrice` — the raw catalog price, before markup.
-- `markup` — the itemized markup folded into `unitPrice`.
-- `inclusiveTaxes` — taxes baked into the price, with their extracted amount.
-- `taxLiability` — total tax actually owed (exclusive plus the extracted portion of inclusive),
-  which differs from the customer-facing `tax`.
+- `cost` — the raw catalog price, before markup.
+- `markup` — the itemized markup folded into `unit.list`. Always unit-basis — a markup row's
+  `adjustment_basis` may only be `unit` (the default when blank) or omitted.
+- `tax.inclusive` — taxes baked into the price, with their extracted amount.
+- `tax.liability` — total tax actually owed (exclusive plus the extracted portion of inclusive),
+  which differs from the customer-facing `tax.amount`.
 
 `debug` is `undefined` on every line when the option is off, so the default output stays exactly
 invoice-shaped.
