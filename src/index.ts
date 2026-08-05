@@ -4,4 +4,4 @@ export type { Issue, ErrorCode, LoadErrorCode, QuoteTimeErrorCode } from "./erro
 export { loadCatalog } from "./compile.js";
 export { Quotes } from "./quote.js";
 export type { QuotesOptions } from "./quote.js";
-export { buildCurrencyMeta } from "./currency.js";
+export { buildCurrencyMeta } from "./primitives.js";
