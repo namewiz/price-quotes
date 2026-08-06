@@ -537,6 +537,7 @@ export const KNOWN_COLUMNS = [
   "created_at", "updated_at", "created_by",
   "price_id", "price_amount", "product_variant", "price_effective_start", "price_effective_end",
   "min_quantity", "max_quantity", "currency", "currency_symbol", "currency_separator",
+  "currency_rounding", "currency_rounding_mode",
   "country_code", "locale", "quantization", "charm", "charm_position", "frequency", "frequency_interval",
   "tax_id", "tax_label", "tax_rate", "tax_behavior", "tax_compound", "tax_constraints",
   "adjustment_id", "adjustment_kind", "adjustment_label", "adjustment_type", "adjustment_basis",
@@ -569,6 +570,9 @@ export interface ResolvedRow {
   maxQuantity: number | null;
   currency: string;
   currencySymbol?: string;
+  /** Currency-level rounding grid, in major units. Undefined when the row/defaults set neither. */
+  currencyRounding?: number;
+  currencyRoundingMode?: "nearest" | "floor" | "ceil";
   countryCode: string | null;
   locale: string;
   quantization: "nearest" | "floor" | "ceil";
@@ -629,6 +633,7 @@ function parseCellValue(col: string, cell: string): unknown {
     case "product_features":
       return parseMap(cell);
     case "price_amount":
+    case "currency_rounding":
       return parseMajorAmount(cell);
     case "min_quantity":
     case "max_quantity":
@@ -849,6 +854,11 @@ export function resolveRows(rawRows: CatalogRowInput[], defaults: CatalogDefault
       maxQuantity,
       currency,
       currencySymbol: pick(raw, defaults, "currency_symbol", undefined),
+      currencyRounding: (() => {
+        const v = pick(raw, defaults, "currency_rounding", undefined);
+        return v === undefined ? undefined : (typeof v === "number" ? v : Number(v));
+      })(),
+      currencyRoundingMode: pick(raw, defaults, "currency_rounding_mode", undefined),
       countryCode: raw.country_code ? raw.country_code : null,
       locale: pick(raw, defaults, "locale", "en-US"),
       quantization,

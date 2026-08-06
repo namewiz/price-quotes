@@ -1,9 +1,59 @@
 // Orchestrates catalog compilation end to end.
 
-import { CatalogConfig, CatalogDefaults, CatalogRowInput, ConstraintExpr, CurrencyMeta, Adjustment, Band, Price, PriceBucket, PriceIndex, Product, Tax } from "./types.js";
+import { CatalogConfig, CatalogDefaults, CatalogRowInput, ConstraintExpr, CurrencyMeta, Quantization, Adjustment, Band, Price, PriceBucket, PriceIndex, Product, Tax } from "./types.js";
 import { Issue, throwIfIssues } from "./errors.js";
 import { parseCsvToRows, resolveRows, ResolvedRow } from "./parse.js";
-import { quantize, charmPrice, MAX_BASE_UNIT_MINOR, buildCurrencyMeta, UnsupportedCurrencyError, computeCatalogHash } from "./primitives.js";
+import { quantize, charmPrice, MAX_BASE_UNIT_MINOR, buildCurrencyMeta, getCurrencyExponent, UnsupportedCurrencyError, computeCatalogHash } from "./primitives.js";
+
+const ROUNDING_MODES = new Set<Quantization>(["nearest", "floor", "ceil"]);
+
+// Currency-level facts (rounding grid/mode) authored redundantly across a currency's rows, same
+// pattern as product-level IDENTITY_FIELDS: every row for a currency must agree, first-seen wins
+// the "prior value" in a conflict message.
+function collectCurrencyRoundingFacts(
+  rows: ResolvedRow[],
+  issues: Issue[],
+): Map<string, { incrementMajor?: number; mode?: Quantization }> {
+  const seenAt = new Map<string, number>();
+  const facts = new Map<string, { incrementMajor?: number; mode?: Quantization }>();
+  for (const r of rows) {
+    if (r.currencyRounding === undefined && r.currencyRoundingMode === undefined) continue;
+    let fact = facts.get(r.currency);
+    if (!fact) {
+      fact = {};
+      facts.set(r.currency, fact);
+      seenAt.set(r.currency, r.row);
+    }
+    const priorRow = seenAt.get(r.currency)!;
+
+    if (r.currencyRounding !== undefined) {
+      if (fact.incrementMajor !== undefined && fact.incrementMajor !== r.currencyRounding) {
+        issues.push({
+          code: "ERR_CURRENCY_ROUNDING_CONFLICT", row: r.row, column: "currency_rounding",
+          message: `currency "${r.currency}" disagrees on currency_rounding: row ${priorRow} has "${fact.incrementMajor}", row ${r.row} has "${r.currencyRounding}"`,
+        });
+      } else {
+        fact.incrementMajor = r.currencyRounding;
+      }
+    }
+    if (r.currencyRoundingMode !== undefined) {
+      if (!ROUNDING_MODES.has(r.currencyRoundingMode)) {
+        issues.push({
+          code: "ERR_BAD_ROUNDING_MODE", row: r.row, column: "currency_rounding_mode",
+          message: `currency_rounding_mode "${r.currencyRoundingMode}" must be one of "nearest", "floor", "ceil"`,
+        });
+      } else if (fact.mode !== undefined && fact.mode !== r.currencyRoundingMode) {
+        issues.push({
+          code: "ERR_CURRENCY_ROUNDING_CONFLICT", row: r.row, column: "currency_rounding_mode",
+          message: `currency "${r.currency}" disagrees on currency_rounding_mode: row ${priorRow} has "${fact.mode}", row ${r.row} has "${r.currencyRoundingMode}"`,
+        });
+      } else {
+        fact.mode = r.currencyRoundingMode;
+      }
+    }
+  }
+  return facts;
+}
 
 // ---- Merge ----
 // Step 5-6 of Compilation: content-derived IDs and merging rows that describe the same price.
@@ -543,11 +593,24 @@ export function loadCatalog(input: string | CatalogRowInput[], defaults: Catalog
   const productsBySku = new Map(products.map((p) => [p.sku, p]));
   issues.push(...checkAliasConflicts(products));
 
+  const roundingFacts = collectCurrencyRoundingFacts(resolved.rows, issues);
+
   const currencies = new Map<string, CurrencyMeta>();
   const currencyCodes = new Set(merged.prices.map((p) => p.currency));
   for (const code of currencyCodes) {
     try {
-      currencies.set(code, buildCurrencyMeta(code, "en-US", defaults.currencies?.[code]));
+      // JS-authored `defaults.currencies` wins when set (explicit override); otherwise fall back
+      // to the catalog's own `currency_rounding`/`currency_rounding_mode` columns, converting the
+      // major-unit grid to minor units via that currency's (Intl-derived) exponent.
+      const override = defaults.currencies?.[code];
+      const csv = roundingFacts.get(code);
+      let increment = override?.increment;
+      if (increment === undefined && csv?.incrementMajor !== undefined) {
+        const exponent = getCurrencyExponent(code, override?.locale ?? "en-US");
+        increment = Math.round(csv.incrementMajor * 10 ** exponent);
+      }
+      const roundingMode = override?.roundingMode ?? csv?.mode;
+      currencies.set(code, buildCurrencyMeta(code, "en-US", { ...override, code, increment, roundingMode }));
     } catch (e) {
       if (e instanceof UnsupportedCurrencyError) {
         issues.push({ code: "ERR_UNSUPPORTED_CURRENCY", message: e.message, value: code });

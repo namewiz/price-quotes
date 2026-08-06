@@ -87,6 +87,49 @@ test("CHF rounding increment snaps to 0.05 at load and after a discount", () => 
   assert.equal(r.unit.sale % 5, 0, "discounted unit should also land on the 0.05 grid");
 });
 
+test("currency_rounding column: NGN rounds to whole naira, ceil, including tax and total", () => {
+  const config = catalogFrom([{
+    product_sku: ".ng", price_amount: "6999.59", currency: "NGN",
+    currency_rounding: "1", currency_rounding_mode: "ceil",
+    tax_rate: "0.075", tax_behavior: "exclusive",
+  }]);
+  const meta = config.currencies.get("NGN");
+  assert.equal(meta.increment, 100, "1 naira == 100 kobo at NGN's exponent 2");
+  assert.equal(meta.roundingMode, "ceil");
+
+  const r = new Quotes(config).quote({ sku: ".ng", quantity: 1 }, "NGN");
+  assert.equal(r.unit.sale % 100, 0, "unit.sale must land on a whole-naira grid");
+  assert.equal(r.tax.amount % 100, 0, "tax must land on a whole-naira grid too, not just the price");
+  assert.equal(r.total % 100, 0, "total (price + tax) must have no kobo remainder");
+});
+
+test("currency_rounding column: a currency's rows must agree, else ERR_CURRENCY_ROUNDING_CONFLICT", () => {
+  assert.throws(
+    () => catalogFrom([
+      { product_sku: ".ng", price_amount: "10.00", currency: "NGN", product_variant: "create", currency_rounding: "1" },
+      { product_sku: ".ng", price_amount: "10.00", currency: "NGN", product_variant: "renew", currency_rounding: "5" },
+    ]),
+    (e) => e.issues?.[0].code === "ERR_CURRENCY_ROUNDING_CONFLICT",
+  );
+});
+
+test("currency_rounding_mode column: an invalid mode is ERR_BAD_ROUNDING_MODE", () => {
+  assert.throws(
+    () => catalogFrom([{ product_sku: ".ng", price_amount: "10.00", currency: "NGN", currency_rounding: "1", currency_rounding_mode: "up" }]),
+    (e) => e.issues?.[0].code === "ERR_BAD_ROUNDING_MODE",
+  );
+});
+
+test("defaults.currencies still wins over the catalog's currency_rounding column", () => {
+  const config = catalogFrom(
+    [{ product_sku: ".ng", price_amount: "10.00", currency: "NGN", currency_rounding: "1", currency_rounding_mode: "ceil" }],
+    { currencies: { NGN: { increment: 50, roundingMode: "floor" } } },
+  );
+  const meta = config.currencies.get("NGN");
+  assert.equal(meta.increment, 50);
+  assert.equal(meta.roundingMode, "floor");
+});
+
 test("ERR_CHARM_INCREMENT_CONFLICT: CHF with charm to9", () => {
   assert.throws(
     () => catalogFrom([{ product_sku: ".ng", price_amount: "12.34", currency: "CHF", charm: "to9" }], CHF_DEFAULTS),

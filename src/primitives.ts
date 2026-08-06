@@ -94,11 +94,6 @@ export function quantize(x: number, increment: number, mode: Quantization): numb
   return n * increment;
 }
 
-/** Half away from zero, always — the one carve-out that isn't governed by the row's mode. */
-export function roundTax(x: number): number {
-  return roundNearestAwayFromZero(correctFloatError(x));
-}
-
 /**
  * Nearest charm candidate: a minor-unit integer whose digit at `position` is the charm digit
  * (4 or 9) and whose lower digits are all 9. Ties resolve downward. `charm(0) = 0` by definition.
@@ -133,6 +128,10 @@ export class UnsupportedCurrencyError extends Error {
   }
 }
 
+export function getCurrencyExponent(code: string, locale = "en-US"): number {
+  return deriveExponent(code, locale);
+}
+
 function deriveExponent(code: string, locale: string): number {
   const cacheKey = `${locale}::${code}`;
   const cached = exponentCache.get(cacheKey);
@@ -155,6 +154,7 @@ export function buildCurrencyMeta(code: string, locale = "en-US", override?: Cur
     code,
     exponent,
     increment: override?.increment ?? 1,
+    roundingMode: override?.roundingMode ?? "nearest",
     symbol: override?.symbol,
   };
 }

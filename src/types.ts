@@ -46,6 +46,10 @@ export interface CatalogRowInput {
   currency?: string;
   currency_symbol?: string;
   currency_separator?: string;
+  /** Currency-level rounding grid, in major units (e.g. "1" for NGN, "0.05" for CHF). See `CurrencyMeta.increment`. */
+  currency_rounding?: number | string;
+  /** Currency-level rounding mode for that grid. Default "nearest". See `CurrencyMeta.roundingMode`. */
+  currency_rounding_mode?: Quantization;
   country_code?: string;
   locale?: string;
   quantization?: Quantization;
@@ -80,6 +84,8 @@ export interface CurrencyMetaInput {
   code: string;
   /** Minor-unit rounding increment, in minor units. Default 1 (no cash rounding). */
   increment?: number;
+  /** Rounding mode applied at that increment, to both prices and tax. Default "nearest". */
+  roundingMode?: Quantization;
   symbol?: string;
   locale?: string;
 }
@@ -88,6 +94,7 @@ export interface CurrencyMeta {
   code: string;
   exponent: number;
   increment: number;
+  roundingMode: Quantization;
   symbol?: string;
 }
 
@@ -95,9 +102,10 @@ export interface CatalogDefaults extends Partial<Omit<CatalogRowInput, "product_
   /** Per-currency [min, max] major-unit sanity range. Off by default (Adversarial 18). */
   price_sanity_range?: Record<string, [number, number]>;
   /**
-   * Per-currency metadata overrides (rounding increment, symbol). Exponents always derive from
-   * Intl; increments have no Intl source and so must be authored here, since quantization
-   * happens at load.
+   * Per-currency metadata overrides (rounding increment/mode, symbol) — take precedence over the
+   * catalog's own `currency_rounding`/`currency_rounding_mode` columns when set. Exponents always
+   * derive from Intl; increments have no Intl source, so a currency lacking both this and a
+   * `currency_rounding` row falls back to increment 1 (no cash rounding).
    */
   currencies?: Record<string, CurrencyMetaInput>;
 }

@@ -6,7 +6,7 @@ import {
 } from "./types.js";
 import { QuoteError } from "./errors.js";
 import { evaluateConstraint, EvalContext } from "./parse.js";
-import { quantize, charmPrice, roundTax } from "./primitives.js";
+import { quantize, charmPrice } from "./primitives.js";
 
 // ---- Price resolution ----
 // Price resolution: alias normalize, then probe the specificity lattice, then band-select.
@@ -198,10 +198,10 @@ function computeLine(
     let charged: number;
     let added: number;
     if (behavior === "inclusive") {
-      charged = base - roundTaxNet(base, t.rate);
+      charged = base - quantize(base / (1 + t.rate), meta.increment, meta.roundingMode);
       added = 0;
     } else {
-      charged = roundTax(base * t.rate);
+      charged = quantize(base * t.rate, meta.increment, meta.roundingMode);
       added = charged;
     }
     taxChargedMinor += charged;
@@ -235,10 +235,6 @@ function computeLine(
     total,
     debug: debugInfo,
   };
-}
-
-function roundTaxNet(gross: number, rate: number): number {
-  return roundTax(gross / (1 + rate));
 }
 
 export class Quotes {
