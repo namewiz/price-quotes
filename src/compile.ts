@@ -112,6 +112,7 @@ export interface PriceDraft {
   quantization: "nearest" | "floor" | "ceil";
   charm: "none" | "to4" | "to9";
   charmPosition: number;
+  charmFill: "nines" | "zeros";
   taxes: Map<string, TaxDraft>;
   adjustments: Map<string, AdjustmentDraft>;
   rows: number[];
@@ -126,7 +127,7 @@ function priceKeyOf(r: ResolvedRow): string {
     r.sku, r.currency, r.variant ?? "*", r.countryCode ?? "*",
     r.minQuantity, bound(r.maxQuantity, "open"),
     bound(r.effectiveStart, "open"), bound(r.effectiveEnd, "open"),
-    r.billingPeriod, r.priceAmount, r.quantization, r.charm, r.charmPosition,
+    r.billingPeriod, r.priceAmount, r.quantization, r.charm, r.charmPosition, r.charmFill,
   ].join("|");
 }
 
@@ -194,7 +195,7 @@ export function mergeRows(rows: ResolvedRow[]): MergeResult {
         id, explicitId: !!r.priceIdRaw, sku: r.sku, currency: r.currency, variant: r.variant, country: r.countryCode ?? null,
         minQuantity: r.minQuantity, maxQuantity: r.maxQuantity, effectiveStart: r.effectiveStart, effectiveEnd: r.effectiveEnd,
         billingPeriod: r.billingPeriod, priceAmount: r.priceAmount, quantization: r.quantization, charm: r.charm,
-        charmPosition: r.charmPosition, taxes: new Map(), adjustments: new Map(), rows: [],
+        charmPosition: r.charmPosition, charmFill: r.charmFill, taxes: new Map(), adjustments: new Map(), rows: [],
       };
       priceByKey.set(key, draft);
       if (r.priceIdRaw) priceById.set(r.priceIdRaw, draft);
@@ -310,7 +311,7 @@ export function compilePrices(drafts: PriceDraft[], currencies: Map<string, Curr
       .reduce((s, a) => s + a.value, 0);
     const floorAdjusted = Math.round(baseUnitMinor * (1 - Math.min(1, totalDiscountRate))) - unitAmountDiscounts;
     const floorUnit = Math.max(0, floorAdjusted);
-    const floorCharmed = charmPrice(floorUnit, d.charm, d.charmPosition);
+    const floorCharmed = charmPrice(floorUnit, d.charm, d.charmPosition, d.charmFill);
     if (floorCharmed < 0) {
       issues.push({
         code: "ERR_CHARM_UNDERFLOW", row: d.rows[0], column: "charm",
@@ -331,6 +332,7 @@ export function compilePrices(drafts: PriceDraft[], currencies: Map<string, Curr
       billingPeriod: d.billingPeriod,
       frequencyInterval: d.billingPeriod === "recurring:month" ? "month" : d.billingPeriod === "recurring:year" ? "year" : null,
       baseUnitMinor, quantization: d.quantization, charm: d.charm, charmPosition: d.charmPosition,
+      charmFill: d.charmFill,
       taxes, adjustments,
     });
   }

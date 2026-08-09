@@ -53,6 +53,27 @@ test("charm underflow: $0.02 to9 p1 is a load error", () => {
   );
 });
 
+test("charm fill: JPY to9 p1 zeros 15943 -> 15990", () => {
+  const config = catalogFrom([{ product_sku: ".ng", price_amount: "15943", currency: "JPY", charm: "to9", charm_position: "1", charm_fill: "zeros" }]);
+  const q = new Quotes(config);
+  const r = q.quote({ sku: ".ng", quantity: 1 }, "JPY");
+  assert.equal(r.unit.sale, 15990);
+});
+
+test("charm fill: JPY to9 p2 zeros 15943 -> 15900", () => {
+  const config = catalogFrom([{ product_sku: ".ng", price_amount: "15943", currency: "JPY", charm: "to9", charm_position: "2", charm_fill: "zeros" }]);
+  const q = new Quotes(config);
+  const r = q.quote({ sku: ".ng", quantity: 1 }, "JPY");
+  assert.equal(r.unit.sale, 15900);
+});
+
+test("charm fill: explicit \"nines\" matches the default (unchanged) behavior", () => {
+  const config = catalogFrom([{ product_sku: ".ng", price_amount: "12.34", charm: "to9", charm_position: "1", charm_fill: "nines" }]);
+  const q = new Quotes(config);
+  const r = q.quote({ sku: ".ng", quantity: 1 }, "USD");
+  assert.equal(r.unit.sale, 1199);
+});
+
 test("reconciliation: unit.sale x quantity === extended.sale across quantities and charm modes", () => {
   for (const charm of ["none", "to4", "to9"]) {
     const config = catalogFrom([{ product_sku: ".ng", price_amount: "12.34", charm, charm_position: charm === "none" ? "0" : "1" }]);

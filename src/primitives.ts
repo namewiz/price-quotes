@@ -64,7 +64,7 @@ export function sha256Hex(message: string): string {
 // Money: quantization (representation) and charm (pricing policy) are two mechanisms
 // that are not a pair.
 
-import { Charm, Quantization, Adjustment, ConstraintExpr, Price, Product, Tax, CurrencyMeta, CurrencyMetaInput } from "./types.js";
+import { Charm, CharmFill, Quantization, Adjustment, ConstraintExpr, Price, Product, Tax, CurrencyMeta, CurrencyMetaInput } from "./types.js";
 
 export const MAX_BASE_UNIT_MINOR = 2 ** 40;
 
@@ -96,23 +96,25 @@ export function quantize(x: number, increment: number, mode: Quantization): numb
 
 /**
  * Nearest charm candidate: a minor-unit integer whose digit at `position` is the charm digit
- * (4 or 9) and whose lower digits are all 9. Ties resolve downward. `charm(0) = 0` by definition.
+ * (4 or 9) and whose lower digits are all 9 (`fill: "nines"`, the default) or all 0
+ * (`fill: "zeros"`). Ties resolve downward. `charm(0) = 0` by definition.
  */
-export function charmPrice(unitMinor: number, charm: Charm, position: number): number {
+export function charmPrice(unitMinor: number, charm: Charm, position: number, fill: CharmFill = "nines"): number {
   if (charm === "none" || unitMinor === 0) return unitMinor;
   const digit = charm === "to9" ? 9 : 4;
   const lowStep = 10 ** position;
   const step = lowStep * 10;
-  const base = digit * lowStep + (lowStep - 1);
+  const filler = fill === "zeros" ? 0 : lowStep - 1;
+  const base = digit * lowStep + filler;
   // Math.ceil(x - 0.5) rounds to nearest, ties toward -Infinity (i.e. "downward").
   const k = Math.ceil((unitMinor - base) / step - 0.5);
   return k * step + base;
 }
 
-export function isCharmCandidate(unitMinor: number, charm: Charm, position: number): boolean {
+export function isCharmCandidate(unitMinor: number, charm: Charm, position: number, fill: CharmFill = "nines"): boolean {
   if (charm === "none") return true;
   if (unitMinor === 0) return true;
-  return charmPrice(unitMinor, charm, position) === unitMinor;
+  return charmPrice(unitMinor, charm, position, fill) === unitMinor;
 }
 
 // ---- Currency ----
@@ -201,7 +203,7 @@ function serializePrice(p: Price): string {
   return [
     p.id, p.sku, p.currency, p.variant ?? "*", p.country ?? "*",
     p.minQuantity, p.maxQuantity ?? "", p.effectiveStart, p.effectiveEnd ?? "",
-    p.billingPeriod, p.baseUnitMinor, p.quantization, p.charm, p.charmPosition,
+    p.billingPeriod, p.baseUnitMinor, p.quantization, p.charm, p.charmPosition, p.charmFill,
     taxIds.join(","), adjIds.join(","),
   ].join(FIELD_SEP);
 }

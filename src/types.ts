@@ -13,6 +13,7 @@ export type BillingPeriod = "one-time" | "recurring:month" | "recurring:year";
 
 export type Quantization = "nearest" | "floor" | "ceil";
 export type Charm = "none" | "to4" | "to9";
+export type CharmFill = "nines" | "zeros";
 export type TaxBehavior = "inclusive" | "exclusive" | "unspecified";
 export type AdjustmentKind = "discount" | "markup" | "fee";
 export type AdjustmentType = "rate" | "amount";
@@ -55,6 +56,7 @@ export interface CatalogRowInput {
   quantization?: Quantization;
   charm?: Charm;
   charm_position?: number | string;
+  charm_fill?: CharmFill;
   frequency?: Frequency;
   frequency_interval?: FrequencyInterval | null;
 
@@ -183,6 +185,7 @@ export interface Price {
   quantization: Quantization;
   charm: Charm;
   charmPosition: number;
+  charmFill: CharmFill;
   taxes: Tax[];
   adjustments: Adjustment[];
 }

@@ -1,6 +1,6 @@
 {
   "name": "price-quotes",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A generic, multi-currency quote engine with built-in savings insights. Prices any product type from a declarative catalog.",
   "type": "module",
   "main": "./dist/index.js",

@@ -163,7 +163,7 @@ function computeLine(
   const discountAmountUnit = combineKind(unitBasisAdjustments, "discount", "amount", Math.max);
   const unitBeforeCharm = Math.max(0, rateAdjustedUnit + feeAmountUnit - discountAmountUnit);
 
-  const unitSale = charmPrice(unitBeforeCharm, price.charm, price.charmPosition);
+  const unitSale = charmPrice(unitBeforeCharm, price.charm, price.charmPosition, price.charmFill);
   const extendedSale = unitSale * line.quantity;
   if (!Number.isSafeInteger(extendedSale)) {
     throw new QuoteError("ERR_AMOUNT_OVERFLOW", `line "${line.ref ?? line.sku}": unit x quantity exceeds the safe integer range`);

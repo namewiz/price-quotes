@@ -538,7 +538,7 @@ export const KNOWN_COLUMNS = [
   "price_id", "price_amount", "product_variant", "price_effective_start", "price_effective_end",
   "min_quantity", "max_quantity", "currency", "currency_symbol", "currency_separator",
   "currency_rounding", "currency_rounding_mode",
-  "country_code", "locale", "quantization", "charm", "charm_position", "frequency", "frequency_interval",
+  "country_code", "locale", "quantization", "charm", "charm_position", "charm_fill", "frequency", "frequency_interval",
   "tax_id", "tax_label", "tax_rate", "tax_behavior", "tax_compound", "tax_constraints",
   "adjustment_id", "adjustment_kind", "adjustment_label", "adjustment_type", "adjustment_basis",
   "adjustment_value", "adjustment_start", "adjustment_end", "adjustment_stackable", "adjustment_constraints",
@@ -578,6 +578,7 @@ export interface ResolvedRow {
   quantization: "nearest" | "floor" | "ceil";
   charm: "none" | "to4" | "to9";
   charmPosition: number;
+  charmFill: "nines" | "zeros";
   billingPeriod: "one-time" | "recurring:month" | "recurring:year";
 
   hasTax: boolean;
@@ -789,6 +790,7 @@ export function resolveRows(rawRows: CatalogRowInput[], defaults: CatalogDefault
     const quantization = pick(raw, defaults, "quantization", "nearest");
     const charm = pick(raw, defaults, "charm", "none");
     const charmPosition = Number(pick(raw, defaults, "charm_position", 0));
+    const charmFill = pick(raw, defaults, "charm_fill", "nines");
 
     const currency = pick(raw, defaults, "currency", "USD");
 
@@ -864,6 +866,7 @@ export function resolveRows(rawRows: CatalogRowInput[], defaults: CatalogDefault
       quantization,
       charm,
       charmPosition,
+      charmFill,
       billingPeriod,
 
       hasTax,
